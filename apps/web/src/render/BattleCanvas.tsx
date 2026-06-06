@@ -193,6 +193,26 @@ function drawBalls(graphics: Graphics, snapshot: WorldSnapshot): void {
         alpha: 0.72
       });
     }
+    if (ball.lowHpRageRemaining > 0) {
+      graphics.circle(x, y, radius + 12).stroke({ color: 0xfb7185, width: 4, alpha: 0.72 });
+    }
+    if (ball.killGrowthStacks > 0) {
+      graphics.circle(x, y, radius + 15).stroke({
+        color: 0xfacc15,
+        width: Math.min(5, 1.5 + ball.killGrowthStacks * 0.55),
+        alpha: 0.58
+      });
+    }
+    if (ball.timeGrowthStacks > 0) {
+      graphics.circle(x, y, radius + 18).stroke({
+        color: 0xa78bfa,
+        width: Math.min(5, 1.5 + ball.timeGrowthStacks * 0.45),
+        alpha: 0.58
+      });
+    }
+    if (ball.reviveTriggered) {
+      graphics.circle(x, y, radius + 21).stroke({ color: 0x34d399, width: 2, alpha: 0.58 });
+    }
     if (ball.statuses.length > 0) {
       const dotRadius = Math.max(4, radius * 0.14);
       const totalWidth = (ball.statuses.length - 1) * dotRadius * 2.6;
@@ -284,6 +304,18 @@ function getTraitEventColor(traitId: string, trigger: string): number {
   }
   if (trigger === "shield_refresh" || trigger === "shield_absorb") {
     return 0x93c5fd;
+  }
+  if (trigger === "low_hp_rage_trigger") {
+    return 0xfb7185;
+  }
+  if (trigger === "kill_growth_stack") {
+    return 0xfacc15;
+  }
+  if (trigger === "time_growth_stack") {
+    return 0xa78bfa;
+  }
+  if (trigger === "revive_once") {
+    return 0x34d399;
   }
   if (traitId === "collision_burst") {
     return 0xfb923c;

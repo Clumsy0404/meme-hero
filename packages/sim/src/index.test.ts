@@ -540,6 +540,71 @@ describe("sim bootstrap", () => {
     expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "shield_absorb")).toBe(true);
   });
 
+  it("triggers low hp rage and temporarily increases movement speed", () => {
+    const world = createBattle(
+      makeMatch(["low_hp_rage", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 360, height: 180 }
+    );
+    const [blue] = placeSeparatedMainBalls(world, 60, 300);
+    blue.hp = blue.stats.maxHp * 0.25;
+
+    stepBattle(world, 1 / 60, 1);
+
+    expect(blue.runtime.lowHpRageRemaining).toBeGreaterThan(4.9);
+    expect(Math.hypot(blue.velocity.x, blue.velocity.y)).toBeCloseTo(blue.stats.moveSpeed * 1.35);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "low_hp_rage_trigger")).toBe(true);
+  });
+
+  it("revives once before the battle can end", () => {
+    const world = createBattle(
+      makeMatch(hpStackTraits, ["one_revive", "hp_boost", "hp_boost", "hp_boost"]),
+      { id: "test", width: 240, height: 180 }
+    );
+    const red = world.balls[1];
+    if (!red) {
+      throw new Error("Expected a red ball");
+    }
+    red.hp = 0;
+    red.alive = false;
+
+    stepBattle(world, 1 / 60, 0);
+
+    expect(red.alive).toBe(true);
+    expect(red.hp).toBeCloseTo(red.stats.maxHp * 0.35);
+    expect(red.runtime.reviveTriggered).toBe(true);
+    expect(world.result).toBeUndefined();
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "revive_once")).toBe(true);
+  });
+
+  it("adds kill growth stacks when an enemy unit finally dies", () => {
+    const world = createBattle(
+      makeMatch(["kill_growth", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 240, height: 180 }
+    );
+    const [blue, red] = placeOverlappingMainBalls(world);
+    red.hp = 1;
+    red.stats.collisionDamage = 0;
+
+    stepBattle(world, 1 / 60, 0);
+
+    expect(blue.runtime.killGrowthStacks).toBe(1);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "kill_growth_stack")).toBe(true);
+  });
+
+  it("adds time growth stacks after the configured interval", () => {
+    const world = createBattle(
+      makeMatch(["time_growth", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 400, height: 180 }
+    );
+    const [blue] = placeSeparatedMainBalls(world, 60, 340);
+    blue.mechanics.rule.timeGrowthInterval = 1;
+
+    stepBattle(world, 1, 0);
+
+    expect(blue.runtime.timeGrowthStacks).toBe(1);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "time_growth_stack")).toBe(true);
+  });
+
   it("returns render snapshots without exposing the rng", () => {
     const world = createBattle(matchConfig);
     stepBattle(world);
@@ -602,6 +667,10 @@ describe("sim bootstrap", () => {
       vulnerablePercent: 0
     });
     red.runtime.shield = 5;
+    red.runtime.lowHpRageRemaining = 2;
+    red.runtime.killGrowthStacks = 3;
+    red.runtime.timeGrowthStacks = 1;
+    red.runtime.reviveTriggered = true;
 
     const snapshot = getSnapshot(world);
     const redSnapshot = snapshot.balls.find((ball) => ball.id === red.id);
@@ -609,5 +678,9 @@ describe("sim bootstrap", () => {
     expect(redSnapshot?.statuses).toEqual([{ id: "burn", remaining: 2 }]);
     expect(redSnapshot?.shield).toBe(5);
     expect(redSnapshot?.maxShield).toBe(14);
+    expect(redSnapshot?.lowHpRageRemaining).toBe(2);
+    expect(redSnapshot?.killGrowthStacks).toBe(3);
+    expect(redSnapshot?.timeGrowthStacks).toBe(1);
+    expect(redSnapshot?.reviveTriggered).toBe(true);
   });
 });

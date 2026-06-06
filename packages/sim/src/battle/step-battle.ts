@@ -38,6 +38,7 @@ export function stepBattle(
     return world;
   }
 
+  updateRules(world, dt);
   updateBalls(world, dt, chaseStrength);
   updateSummons(world);
   fireProjectiles(world);
@@ -523,10 +524,11 @@ function canDamagePair(a: BallState, b: BallState): boolean {
 }
 
 function getCollisionDamage(world: BattleWorldState, source: BallState): number {
+  const baseDamage = source.stats.collisionDamage * getRuleCollisionDamageMultiplier(source);
   const { wallChargeStacks } = source.runtime;
   const { wallChargeDamagePercentPerStack } = source.mechanics.collision;
   if (wallChargeStacks <= 0 || wallChargeDamagePercentPerStack <= 0) {
-    return source.stats.collisionDamage;
+    return baseDamage;
   }
 
   world.events.push({
@@ -539,7 +541,7 @@ function getCollisionDamage(world: BattleWorldState, source: BallState): number 
     value: wallChargeStacks
   });
   source.runtime.wallChargeStacks = 0;
-  return source.stats.collisionDamage * (1 + wallChargeStacks * wallChargeDamagePercentPerStack);
+  return baseDamage * (1 + wallChargeStacks * wallChargeDamagePercentPerStack);
 }
 
 function applyDamage(
@@ -572,6 +574,7 @@ function applyDamage(
   if (target.hp <= 0) {
     target.alive = false;
     target.runtime.deathDamageTags = tags;
+    target.runtime.lastDamageSourceId = source?.id ?? null;
   }
   return finalAmount;
 }
@@ -707,7 +710,7 @@ function applyStatusEffect(
 }
 
 function getEffectiveMoveSpeed(ball: BallState): number {
-  return ball.stats.moveSpeed * (1 - getMaxStatusValue(ball, "slowPercent", 0.85));
+  return ball.stats.moveSpeed * getRuleMoveSpeedMultiplier(ball) * (1 - getMaxStatusValue(ball, "slowPercent", 0.85));
 }
 
 function getVulnerablePercent(ball: BallState): number {
@@ -720,6 +723,84 @@ function getMaxStatusValue(ball: BallState, key: "slowPercent" | "vulnerablePerc
     0,
     maxValue
   );
+}
+
+function updateRules(world: BattleWorldState, dt: number): void {
+  for (const ball of world.balls) {
+    if (!ball.alive) {
+      continue;
+    }
+
+    if (ball.runtime.lowHpRageRemaining > 0) {
+      ball.runtime.lowHpRageRemaining = Math.max(0, ball.runtime.lowHpRageRemaining - dt);
+    }
+
+    triggerLowHpRage(world, ball);
+    updateTimeGrowth(world, ball, dt);
+  }
+}
+
+function triggerLowHpRage(world: BattleWorldState, ball: BallState): void {
+  const { lowHpRageDuration, lowHpRageThreshold } = ball.mechanics.rule;
+  if (lowHpRageDuration <= 0 || ball.runtime.lowHpRageTriggered || ball.hp / ball.stats.maxHp > lowHpRageThreshold) {
+    return;
+  }
+
+  ball.runtime.lowHpRageTriggered = true;
+  ball.runtime.lowHpRageRemaining = lowHpRageDuration;
+  world.events.push({
+    type: "trait_triggered",
+    tick: world.tick,
+    ballId: ball.id,
+    traitId: "low_hp_rage",
+    trigger: "low_hp_rage_trigger",
+    position: { ...ball.position },
+    value: lowHpRageDuration
+  });
+}
+
+function updateTimeGrowth(world: BattleWorldState, ball: BallState, dt: number): void {
+  const { timeGrowthInterval, timeGrowthMaxStacks } = ball.mechanics.rule;
+  if (timeGrowthMaxStacks <= 0 || timeGrowthInterval <= 0 || ball.runtime.timeGrowthStacks >= timeGrowthMaxStacks) {
+    return;
+  }
+
+  ball.runtime.timeGrowthTimer += dt;
+  while (ball.runtime.timeGrowthTimer >= timeGrowthInterval && ball.runtime.timeGrowthStacks < timeGrowthMaxStacks) {
+    ball.runtime.timeGrowthTimer -= timeGrowthInterval;
+    ball.runtime.timeGrowthStacks += 1;
+    world.events.push({
+      type: "trait_triggered",
+      tick: world.tick,
+      ballId: ball.id,
+      traitId: "time_growth",
+      trigger: "time_growth_stack",
+      position: { ...ball.position },
+      value: ball.runtime.timeGrowthStacks
+    });
+  }
+}
+
+function getRuleMoveSpeedMultiplier(ball: BallState): number {
+  const { rule } = ball.mechanics;
+  let multiplier = 1;
+  if (ball.runtime.lowHpRageRemaining > 0) {
+    multiplier *= rule.lowHpRageSpeedMultiplier;
+  }
+  multiplier *= 1 + ball.runtime.killGrowthStacks * rule.killGrowthMoveSpeedPercentPerStack;
+  multiplier *= 1 + ball.runtime.timeGrowthStacks * rule.timeGrowthMoveSpeedPercentPerStack;
+  return multiplier;
+}
+
+function getRuleCollisionDamageMultiplier(ball: BallState): number {
+  const { rule } = ball.mechanics;
+  let multiplier = 1;
+  if (ball.runtime.lowHpRageRemaining > 0) {
+    multiplier *= rule.lowHpRageCollisionDamageMultiplier;
+  }
+  multiplier *= 1 + ball.runtime.killGrowthStacks * rule.killGrowthCollisionDamagePercentPerStack;
+  multiplier *= 1 + ball.runtime.timeGrowthStacks * rule.timeGrowthCollisionDamagePercentPerStack;
+  return multiplier;
 }
 
 function applyHeal(world: BattleWorldState, source: BallState, target: BallState, amount: number): number {
@@ -973,6 +1054,7 @@ function createChildStats(
 }
 
 function createChildMechanics(mechanics: BallMechanics, role: "clone" | "split"): BallMechanics {
+  const keepsScoringRules = role === "split";
   return {
     collision: { ...mechanics.collision },
     projectile: { ...mechanics.projectile, enabled: false },
@@ -989,6 +1071,13 @@ function createChildMechanics(mechanics: BallMechanics, role: "clone" | "split")
       onHit: mechanics.status.onHit.map((status) => ({ ...status })),
       shieldValue: role === "split" ? mechanics.status.shieldValue : 0,
       shieldCooldown: role === "split" ? mechanics.status.shieldCooldown : 0
+    },
+    rule: {
+      ...mechanics.rule,
+      lowHpRageDuration: keepsScoringRules ? mechanics.rule.lowHpRageDuration : 0,
+      killGrowthMaxStacks: keepsScoringRules ? mechanics.rule.killGrowthMaxStacks : 0,
+      timeGrowthMaxStacks: keepsScoringRules ? mechanics.rule.timeGrowthMaxStacks : 0,
+      reviveHpRatio: 0
     }
   };
 }
@@ -1008,6 +1097,11 @@ function processDeaths(world: BattleWorldState): void {
     const deadBalls = world.balls.filter((ball) => !ball.alive && !ball.runtime.deathHandled);
     for (const ball of deadBalls) {
       didHandleDeath = true;
+      if (canRevive(ball)) {
+        reviveBall(world, ball);
+        continue;
+      }
+
       if (ball.role === "main" && canDeathSplit(ball)) {
         ball.runtime.deathSplitTriggered = true;
         ball.runtime.deathHandled = true;
@@ -1015,6 +1109,7 @@ function processDeaths(world: BattleWorldState): void {
         continue;
       }
 
+      grantKillGrowth(world, ball);
       if (ball.role !== "main" && !ball.runtime.deathDamageTags.includes("explosion")) {
         triggerSummonDeathExplosion(world, ball);
       }
@@ -1025,6 +1120,67 @@ function processDeaths(world: BattleWorldState): void {
 
 function canDeathSplit(ball: BallState): boolean {
   return ball.mechanics.summon.splitCount > 0 && !ball.runtime.deathSplitTriggered;
+}
+
+function canRevive(ball: BallState): boolean {
+  return ball.role === "main" && ball.mechanics.rule.reviveHpRatio > 0 && !ball.runtime.reviveTriggered;
+}
+
+function reviveBall(world: BattleWorldState, ball: BallState): void {
+  ball.alive = true;
+  ball.hp = Math.max(1, ball.stats.maxHp * ball.mechanics.rule.reviveHpRatio);
+  ball.runtime.reviveTriggered = true;
+  ball.runtime.deathDamageTags = [];
+  ball.runtime.lastDamageSourceId = null;
+  ball.runtime.statuses = [];
+  ball.runtime.shield = 0;
+  world.events.push({
+    type: "trait_triggered",
+    tick: world.tick,
+    ballId: ball.id,
+    traitId: "one_revive",
+    trigger: "revive_once",
+    position: { ...ball.position },
+    value: ball.hp
+  });
+}
+
+function grantKillGrowth(world: BattleWorldState, deadBall: BallState): void {
+  const killer = findKillCreditBall(world, deadBall.runtime.lastDamageSourceId);
+  if (!killer || killer.team === deadBall.team || !killer.alive || killer.mechanics.rule.killGrowthMaxStacks <= 0) {
+    return;
+  }
+
+  const nextStacks = Math.min(killer.mechanics.rule.killGrowthMaxStacks, killer.runtime.killGrowthStacks + 1);
+  if (nextStacks === killer.runtime.killGrowthStacks) {
+    return;
+  }
+
+  killer.runtime.killGrowthStacks = nextStacks;
+  world.events.push({
+    type: "trait_triggered",
+    tick: world.tick,
+    ballId: killer.id,
+    traitId: "kill_growth",
+    trigger: "kill_growth_stack",
+    position: { ...killer.position },
+    value: nextStacks
+  });
+}
+
+function findKillCreditBall(world: BattleWorldState, sourceId: string | null): BallState | undefined {
+  if (!sourceId) {
+    return undefined;
+  }
+
+  const source = world.balls.find((ball) => ball.id === sourceId);
+  if (!source) {
+    return undefined;
+  }
+  if (source.role === "clone" && source.ownerId) {
+    return world.balls.find((ball) => ball.id === source.ownerId) ?? source;
+  }
+  return source;
 }
 
 function triggerSummonDeathExplosion(world: BattleWorldState, source: BallState): void {

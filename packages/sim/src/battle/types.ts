@@ -30,6 +30,7 @@ export type BallMechanics = {
   projectile: ProjectileMechanics;
   summon: SummonMechanics;
   status: StatusMechanics;
+  rule: RuleMechanics;
 };
 
 export type CollisionMechanics = {
@@ -107,6 +108,21 @@ export type ActiveStatusEffect = {
   vulnerablePercent: number;
 };
 
+export type RuleMechanics = {
+  lowHpRageThreshold: number;
+  lowHpRageDuration: number;
+  lowHpRageSpeedMultiplier: number;
+  lowHpRageCollisionDamageMultiplier: number;
+  killGrowthMaxStacks: number;
+  killGrowthCollisionDamagePercentPerStack: number;
+  killGrowthMoveSpeedPercentPerStack: number;
+  timeGrowthMaxStacks: number;
+  timeGrowthInterval: number;
+  timeGrowthCollisionDamagePercentPerStack: number;
+  timeGrowthMoveSpeedPercentPerStack: number;
+  reviveHpRatio: number;
+};
+
 export type BallRuntimeState = {
   lifestealWindowStart: number;
   lifestealHealedInWindow: number;
@@ -121,6 +137,13 @@ export type BallRuntimeState = {
   statuses: ActiveStatusEffect[];
   shield: number;
   shieldCooldown: number;
+  lowHpRageTriggered: boolean;
+  lowHpRageRemaining: number;
+  killGrowthStacks: number;
+  timeGrowthStacks: number;
+  timeGrowthTimer: number;
+  reviveTriggered: boolean;
+  lastDamageSourceId: string | null;
 };
 
 export type DamageTag = "collision" | "projectile" | "dot" | "explosion" | "reflect";
@@ -244,6 +267,10 @@ export type RenderBall = {
   statuses: RenderStatusEffect[];
   shield: number;
   maxShield: number;
+  lowHpRageRemaining: number;
+  killGrowthStacks: number;
+  timeGrowthStacks: number;
+  reviveTriggered: boolean;
   position: Vec2;
 };
 

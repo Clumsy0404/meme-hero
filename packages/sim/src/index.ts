@@ -21,6 +21,7 @@ export type {
   RenderStatusEffect,
   RenderProjectile,
   RenderTurret,
+  RuleMechanics,
   StatusApplicationMechanics,
   StatusEffectId,
   StatusMechanics,

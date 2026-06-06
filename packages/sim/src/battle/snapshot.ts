@@ -20,6 +20,10 @@ export function getSnapshot(world: BattleWorldState): WorldSnapshot {
       })),
       shield: ball.runtime.shield,
       maxShield: ball.mechanics.status.shieldValue,
+      lowHpRageRemaining: ball.runtime.lowHpRageRemaining,
+      killGrowthStacks: ball.runtime.killGrowthStacks,
+      timeGrowthStacks: ball.runtime.timeGrowthStacks,
+      reviveTriggered: ball.runtime.reviveTriggered,
       position: { ...ball.position }
     })),
     projectiles: world.projectiles.map((projectile) => ({

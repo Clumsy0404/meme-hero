@@ -6,6 +6,7 @@ import type {
   BallRuntimeState,
   CollisionMechanics,
   ProjectileMechanics,
+  RuleMechanics,
   StatusEffectId,
   StatusMechanics,
   SummonMechanics
@@ -64,11 +65,27 @@ const emptyStatusMechanics: StatusMechanics = {
   shieldCooldown: 0
 };
 
+const emptyRuleMechanics: RuleMechanics = {
+  lowHpRageThreshold: 0.3,
+  lowHpRageDuration: 0,
+  lowHpRageSpeedMultiplier: 1.35,
+  lowHpRageCollisionDamageMultiplier: 1.35,
+  killGrowthMaxStacks: 0,
+  killGrowthCollisionDamagePercentPerStack: 0.08,
+  killGrowthMoveSpeedPercentPerStack: 0.02,
+  timeGrowthMaxStacks: 0,
+  timeGrowthInterval: 10,
+  timeGrowthCollisionDamagePercentPerStack: 0.04,
+  timeGrowthMoveSpeedPercentPerStack: 0.02,
+  reviveHpRatio: 0
+};
+
 export function createMechanicsForBuild(build: BuildConfig): BallMechanics {
   const collision = { ...emptyCollisionMechanics };
   const projectile = { ...baseProjectileMechanics };
   const summon = { ...emptySummonMechanics };
   const status: StatusMechanics = { ...emptyStatusMechanics, onHit: [] };
+  const rule = { ...emptyRuleMechanics };
   let fireRateMultiplier = 1;
 
   for (const traitId of build.traits) {
@@ -141,11 +158,27 @@ export function createMechanicsForBuild(build: BuildConfig): BallMechanics {
         });
       }
     }
+
+    const ruleConfig = trait.numeric.rule;
+    if (ruleConfig && trait.mainType === "rule") {
+      if (ruleConfig.trigger === "hp_below_30_percent") {
+        rule.lowHpRageDuration = Math.max(rule.lowHpRageDuration, ruleConfig.duration ?? 0);
+      }
+      if (ruleConfig.trigger === "kill") {
+        rule.killGrowthMaxStacks = Math.max(rule.killGrowthMaxStacks, ruleConfig.maxStacks ?? 0);
+      }
+      if (ruleConfig.trigger === "time") {
+        rule.timeGrowthMaxStacks = Math.max(rule.timeGrowthMaxStacks, ruleConfig.maxStacks ?? 0);
+      }
+      if (ruleConfig.trigger === "death") {
+        rule.reviveHpRatio = Math.max(rule.reviveHpRatio, ruleConfig.reviveHpRatio ?? 0);
+      }
+    }
   }
 
   projectile.cooldown = projectile.enabled ? projectile.cooldown / Math.max(0.25, fireRateMultiplier) : projectile.cooldown;
 
-  return { collision, projectile, summon, status };
+  return { collision, projectile, summon, status, rule };
 }
 
 export function createRuntimeState(): BallRuntimeState {
@@ -162,7 +195,14 @@ export function createRuntimeState(): BallRuntimeState {
     deathDamageTags: [],
     statuses: [],
     shield: 0,
-    shieldCooldown: 0
+    shieldCooldown: 0,
+    lowHpRageTriggered: false,
+    lowHpRageRemaining: 0,
+    killGrowthStacks: 0,
+    timeGrowthStacks: 0,
+    timeGrowthTimer: 0,
+    reviveTriggered: false,
+    lastDamageSourceId: null
   };
 }
 
