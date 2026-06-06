@@ -406,6 +406,7 @@ export const traitDefinitions: TraitDefinition[] = [
     name: "黑曼巴肘击",
     subtitle: "近身爆发碰撞",
     mainType: "collision",
+    rarity: "legendary",
     tags: ["special", "collision", "damage", "knockback"],
     repeatRule: { kind: "unique" },
     description: "每 10 秒进入 2 秒弯肘突进，朝敌人冲刺并伸出黑色手肘，窗口内只判定 1 次强化碰撞伤害。",
@@ -428,6 +429,7 @@ export const traitDefinitions: TraitDefinition[] = [
     name: "唱跳篮球",
     subtitle: "可反弹弹道",
     mainType: "projectile",
+    rarity: "legendary",
     tags: ["special", "projectile", "bounce"],
     repeatRule: { kind: "unique" },
     description: "每 2.2 秒发射 1 个篮球弹道，命中造成 5 点伤害，撞墙可反弹 3 次。",
@@ -449,6 +451,7 @@ export const traitDefinitions: TraitDefinition[] = [
     name: "哈基米护体",
     subtitle: "软弹护盾",
     mainType: "status",
+    rarity: "legendary",
     tags: ["special", "guard", "collision", "survival"],
     repeatRule: { kind: "unique" },
     description: "每 15 秒获得 1 次护体状态，持续 3.5 秒；下一次受到碰撞伤害降低 60% 并软弹反弹。",
@@ -462,6 +465,94 @@ export const traitDefinitions: TraitDefinition[] = [
       }
     },
     behaviorKeys: ["special_hajimi_guard"]
+  },
+  {
+    id: "special_blade_shield_stance",
+    name: "我的刀盾",
+    subtitle: "攻防形态切换",
+    mainType: "collision",
+    rarity: "legendary",
+    tags: ["special", "collision", "stance", "survival"],
+    repeatRule: { kind: "unique" },
+    description: "刀形态扩大碰撞判定并提高碰撞伤害；盾形态获得全伤害减免、反弹击退和小幅移速代价。",
+    numeric: {
+      special: {
+        bladeShieldBladeDuration: 5,
+        bladeShieldShieldDuration: 5,
+        bladeShieldBladeDamageMultiplier: 1.25,
+        bladeShieldRangeMultiplier: 2,
+        bladeShieldDamageReduction: 0.3,
+        bladeShieldKnockbackMultiplier: 1.25,
+        bladeShieldMoveSpeedMultiplier: 0.92
+      }
+    },
+    behaviorKeys: ["special_blade_shield_stance"]
+  },
+  {
+    id: "special_dongbei_tiger_gaze",
+    name: "虎哥一眼万年",
+    subtitle: "凝视定身压迫",
+    mainType: "status",
+    rarity: "legendary",
+    tags: ["special", "control", "slow", "vulnerable"],
+    repeatRule: { kind: "unique" },
+    description: "每 8 秒凝视最近敌人 2 秒，使其移速降至 0% 且受到伤害提高 10%。",
+    numeric: {
+      special: {
+        tigerGazeCooldown: 8,
+        tigerGazeDuration: 2,
+        tigerGazeSlowPercent: 1,
+        tigerGazeVulnerablePercent: 0.1
+      }
+    },
+    behaviorKeys: ["special_dongbei_tiger_gaze"]
+  },
+  {
+    id: "special_huaqiang_melon",
+    name: "华强买瓜",
+    subtitle: "西瓜与刀交替弹道",
+    mainType: "projectile",
+    rarity: "legendary",
+    tags: ["special", "projectile", "splash"],
+    repeatRule: { kind: "unique" },
+    description: "每 5 秒交替发射西瓜和西瓜刀；西瓜碎裂造成范围伤害，西瓜刀高速单体命中。",
+    numeric: {
+      special: {
+        huaqiangCooldown: 5,
+        huaqiangMelonDamage: 2,
+        huaqiangMelonSplashDamage: 2,
+        huaqiangMelonSplashRadius: 70,
+        huaqiangMelonSpeed: 330,
+        huaqiangMelonRadius: 18,
+        huaqiangMelonLifetime: 4,
+        huaqiangKnifeDamage: 3,
+        huaqiangKnifeSpeed: 480,
+        huaqiangKnifeRadius: 10,
+        huaqiangKnifeLifetime: 3.2
+      }
+    },
+    behaviorKeys: ["special_huaqiang_melon"]
+  },
+  {
+    id: "special_shenying_black_hand",
+    name: "神鹰哥黑手",
+    subtitle: "预警抓取拖拽",
+    mainType: "status",
+    rarity: "legendary",
+    tags: ["special", "control", "slow"],
+    repeatRule: { kind: "unique" },
+    description: "每 10 秒锁定最近敌人，短暂预警后抓取拖向自身，并在结束后施加减速。",
+    numeric: {
+      special: {
+        blackHandCooldown: 10,
+        blackHandWarningDuration: 0.5,
+        blackHandGrabDuration: 1.2,
+        blackHandDragStrength: 520,
+        blackHandSlowPercent: 0.5,
+        blackHandSlowDuration: 2
+      }
+    },
+    behaviorKeys: ["special_shenying_black_hand"]
   },
   {
     id: "low_hp_rage",
@@ -571,6 +662,16 @@ export function validateBuildConfig(build: BuildConfig, definitions: TraitDefini
     }
     counts.set(traitId, (counts.get(traitId) ?? 0) + 1);
   });
+
+  const legendaryTraitIds = build.traits.filter((traitId) => definitionsById.get(traitId)?.rarity === "legendary");
+  if (legendaryTraitIds.length > 1) {
+    const overflowTraitId = legendaryTraitIds[1]!;
+    issues.push({
+      code: "legendary_trait_limit_exceeded",
+      message: "每套构筑最多只能选择 1 个传说词条。",
+      traitId: overflowTraitId
+    });
+  }
 
   for (const [traitId, count] of counts) {
     const definition = definitionsById.get(traitId);

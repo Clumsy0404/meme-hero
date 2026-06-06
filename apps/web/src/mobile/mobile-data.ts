@@ -1,5 +1,5 @@
 import { presetEnemies, traitDefinitions, traitTypeLabels } from "@ball-brawl/content";
-import { TRAITS_PER_BUILD, type TraitDefinition, type TraitId, type TraitType } from "@ball-brawl/shared";
+import { TRAITS_PER_BUILD, type TraitDefinition, type TraitId, type TraitRarity, type TraitType } from "@ball-brawl/shared";
 
 export type MobileTraitCategoryId = "survive" | "move" | "damage" | "range" | "summon" | "status" | "rule";
 
@@ -18,6 +18,7 @@ export type MobileTrait = {
   description: string;
   cat: MobileTraitCategoryId;
   tags: string[];
+  rarity: TraitRarity;
   repeat: boolean;
   maxStacks: number;
   cost: "pure" | "tradeoff";
@@ -84,6 +85,7 @@ export const mobileTraits: MobileTrait[] = traitDefinitions.map((trait) => {
     description: `${trait.subtitle} · ${traitTypeLabels[trait.mainType]}`,
     cat,
     tags: trait.tags,
+    rarity: trait.rarity ?? "normal",
     repeat: trait.repeatRule.kind === "stackable",
     maxStacks: trait.repeatRule.kind === "stackable" ? trait.repeatRule.maxStacks ?? TRAITS_PER_BUILD : 1,
     cost: hasTradeoff(trait) ? "tradeoff" : "pure",

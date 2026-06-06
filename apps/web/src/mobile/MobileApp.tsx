@@ -6,6 +6,7 @@ import {
   stepBattle,
   type BattleWorldState
 } from "@ball-brawl/sim";
+import { validateBuildConfig } from "@ball-brawl/content";
 import type { BuildConfig, TraitId } from "@ball-brawl/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -292,6 +293,7 @@ function TraitSelectScreen({ selectedTraits, onConfirm, onTraitsChange }: TraitS
   const selectedIds = selectedTraits.map((trait) => trait.id);
   const traits = mobileGameData.traits.filter((trait) => trait.cat === categoryId);
   const full = selectedTraits.length >= mobileGameData.pickCount;
+  const hasLegendary = selectedTraits.some((trait) => trait.rarity === "legendary");
 
   const countOf = useCallback(
     (traitId: TraitId) => selectedTraits.filter((trait) => trait.id === traitId).length,
@@ -299,8 +301,12 @@ function TraitSelectScreen({ selectedTraits, onConfirm, onTraitsChange }: TraitS
   );
 
   const canAdd = useCallback(
-    (trait: MobileTrait) => selectedTraits.length < mobileGameData.pickCount && (trait.repeat || !selectedIds.includes(trait.id)) && countOf(trait.id) < trait.maxStacks,
-    [countOf, selectedIds, selectedTraits.length]
+    (trait: MobileTrait) =>
+      selectedTraits.length < mobileGameData.pickCount &&
+      (trait.repeat || !selectedIds.includes(trait.id)) &&
+      countOf(trait.id) < trait.maxStacks &&
+      (trait.rarity !== "legendary" || !hasLegendary),
+    [countOf, hasLegendary, selectedIds, selectedTraits.length]
   );
 
   const addTrait = useCallback(
@@ -365,10 +371,11 @@ function TraitSelectScreen({ selectedTraits, onConfirm, onTraitsChange }: TraitS
           const category = getMobileCategory(trait.cat);
           const disabled = !canAdd(trait);
           const selectedCount = countOf(trait.id);
+          const legendary = trait.rarity === "legendary";
           const cost = trait.cost === "tradeoff" ? { cls: "cost-trade", text: "有代价" } : { cls: "cost-pure", text: "纯正面" };
           return (
             <button
-              className={`va-card ${disabled ? "dis" : ""}`}
+              className={`va-card ${legendary ? "legendary" : ""} ${disabled ? "dis" : ""}`}
               disabled={disabled}
               key={trait.id}
               onClick={() => addTrait(trait)}
@@ -386,6 +393,7 @@ function TraitSelectScreen({ selectedTraits, onConfirm, onTraitsChange }: TraitS
                 <span className={`va-chip ${cost.cls}`} style={{ "--c": category.color } as React.CSSProperties}>
                   {cost.text}
                 </span>
+                {legendary ? <span className="va-chip va-legend">传说</span> : null}
                 <span className="va-chip">{trait.repeat ? "REPEAT" : "UNIQUE"}</span>
               </div>
             </button>
@@ -403,7 +411,11 @@ function TraitSelectScreen({ selectedTraits, onConfirm, onTraitsChange }: TraitS
             const trait = selectedTraits[index];
             const category = trait ? getMobileCategory(trait.cat) : null;
             return trait && category ? (
-              <div className="va-slot" key={index} style={{ "--c": category.color } as React.CSSProperties}>
+              <div
+                className={`va-slot ${trait.rarity === "legendary" ? "legendary" : ""}`}
+                key={index}
+                style={{ "--c": category.color } as React.CSSProperties}
+              >
                 <TraitMini trait={trait} onRemove={() => removeTrait(index)} />
               </div>
             ) : (
@@ -842,6 +854,13 @@ function BattleScreen({ snapshot, paused, speed, onBack, onRestart, onSpeedChang
       <div className="vbt-arena">
         <div className="vbt-grid" />
         <div className="vbt-vs">VS</div>
+        {snapshot.links.length > 0 ? (
+          <svg className="vbt-links" preserveAspectRatio="none" viewBox={`0 0 ${snapshot.arena.w} ${snapshot.arena.h}`}>
+            {snapshot.links.map((link) => (
+              <line className={link.kind} key={link.id} x1={link.from.x} x2={link.to.x} y1={link.from.y} y2={link.to.y} />
+            ))}
+          </svg>
+        ) : null}
         {snapshot.summons.map((summon) => (
           <div className="vbt-ent" key={summon.id} style={arenaStyle(snapshot, summon.x, summon.y)}>
             <div className="vbt-summon">
@@ -864,7 +883,7 @@ function BattleScreen({ snapshot, paused, speed, onBack, onRestart, onSpeedChang
                   key={effect}
                   style={
                     {
-                      "--status": effect === "hajimiGuard" ? specialEffectColors.hajimiGuard : specialEffectColors.elbowReady
+                      "--status": getSpecialEffectColor(effect)
                     } as React.CSSProperties
                   }
                 />
@@ -965,6 +984,10 @@ function FighterHud({ combatant, side }: { combatant: MobileBattleSnapshot["comb
 
 function getSpecialBallRenderSize(radius: number): number {
   return Math.max(34, Math.min(92, radius * 1.28));
+}
+
+function getSpecialEffectColor(effect: MobileBattleSnapshot["combatants"][number]["specialEffects"][number]): string {
+  return specialEffectColors[effect] ?? specialEffectColors.elbowReady;
 }
 
 function elbowStyle(combatant: MobileBattleSnapshot["combatants"][number]): React.CSSProperties {
@@ -1082,7 +1105,12 @@ function BallSprite({ color, px, size, hi = "rgba(255,255,255,.7)" }: { color: s
 function TraitMini({ trait, onRemove }: { trait: MobileTrait; onRemove: () => void }) {
   const category = getMobileCategory(trait.cat);
   return (
-    <button className="tmini" onClick={onRemove} style={{ "--c": category.color } as React.CSSProperties} type="button">
+    <button
+      className={`tmini ${trait.rarity === "legendary" ? "legendary" : ""}`}
+      onClick={onRemove}
+      style={{ "--c": category.color } as React.CSSProperties}
+      type="button"
+    >
       <span className="tmini-bar" />
       <span className="tmini-name">{trait.name}</span>
       <span className="tmini-x">✕</span>
@@ -1201,6 +1229,10 @@ function validateBuildTraitIds(traits: unknown): { ok: true; traits: TraitId[] }
   const traitIds = traits.filter((trait): trait is TraitId => typeof trait === "string" && Boolean(getMobileTrait(trait as TraitId)));
   if (traitIds.length !== traits.length) {
     return { ok: false, message: "构筑里包含未知词条。" };
+  }
+  const validation = validateBuildConfig(createBuildConfig("移动端校验构筑", "mobile_blue", traitIds));
+  if (!validation.ok) {
+    return { ok: false, message: validation.issues[0]?.message ?? "构筑不符合当前规则。" };
   }
   return { ok: true, traits: traitIds };
 }

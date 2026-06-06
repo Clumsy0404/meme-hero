@@ -26,7 +26,7 @@ export type MobileAssetManifest = {
 export type SpecialTraitAsset = {
   traitId: TraitId;
   ballSrc: string;
-  sfxSrc: string;
+  sfxSrc?: string;
   priority: number;
 };
 
@@ -40,7 +40,9 @@ export const mobileAssetManifest: MobileAssetManifest = {
     basic: { key: "projectile.basic", kind: "placeholder" },
     child: { key: "projectile.child", kind: "placeholder" },
     turret: { key: "projectile.turret", kind: "placeholder" },
-    basketball: { key: "projectile.basketball", kind: "placeholder" }
+    basketball: { key: "projectile.basketball", kind: "placeholder" },
+    melon: { key: "projectile.melon", kind: "placeholder" },
+    melon_knife: { key: "projectile.melon_knife", kind: "placeholder" }
   },
   summons: {
     clone: { key: "summon.clone", kind: "placeholder" },
@@ -75,6 +77,29 @@ export const specialTraitAssets: Partial<Record<TraitId, SpecialTraitAsset>> = {
     ballSrc: "/assets/special/special_hajimi_guard.png",
     sfxSrc: "/assets/special/special_hajimi_guard.mp3",
     priority: 3
+  },
+  special_blade_shield_stance: {
+    traitId: "special_blade_shield_stance",
+    ballSrc: "/assets/special/special_blade_shield_stance.png",
+    sfxSrc: "/assets/special/special_blade_shield_stance_hit.mp3",
+    priority: 4
+  },
+  special_dongbei_tiger_gaze: {
+    traitId: "special_dongbei_tiger_gaze",
+    ballSrc: "/assets/special/special_dongbei_tiger_gaze.png",
+    sfxSrc: "/assets/special/special_dongbei_tiger_gaze.mp3",
+    priority: 5
+  },
+  special_huaqiang_melon: {
+    traitId: "special_huaqiang_melon",
+    ballSrc: "/assets/special/special_huaqiang_melon.png",
+    priority: 6
+  },
+  special_shenying_black_hand: {
+    traitId: "special_shenying_black_hand",
+    ballSrc: "/assets/special/special_shenying_black_hand.png",
+    sfxSrc: "/assets/special/special_shenying_black_hand.mp3",
+    priority: 7
   }
 };
 
@@ -108,5 +133,10 @@ export const statusLabels: Record<StatusEffectId | "shield", string> = {
 
 export const specialEffectColors = {
   elbowReady: "#ffd23f",
-  hajimiGuard: "#ff8bd1"
+  hajimiGuard: "#ff8bd1",
+  bladeStance: "#ffe066",
+  shieldStance: "#93c5fd",
+  tigerGaze: "#ffb627",
+  blackHandWarning: "#7c3aed",
+  blackHandGrab: "#111827"
 } as const;

@@ -42,11 +42,14 @@ export function stepBattle(
   updateRules(world, dt);
   updateSpecials(world, dt);
   updateBalls(world, dt, chaseStrength);
+  applySpecialBlackHandDrag(world, dt);
   updateSummons(world);
   fireProjectiles(world);
   fireSpecialBasketballs(world);
+  fireSpecialHuaqiang(world);
   updateTurrets(world, dt);
   updateProjectiles(world, dt);
+  resolveSpecialBladeShieldCollisions(world);
   resolveSpecialElbowCollisions(world);
   resolveBallCollisions(world);
   processDeaths(world);
@@ -293,6 +296,38 @@ function spawnBasketballProjectile(world: BattleWorldState, owner: BallState, di
   return projectile;
 }
 
+function spawnHuaqiangProjectile(
+  world: BattleWorldState,
+  owner: BallState,
+  direction: Vec2,
+  kind: "melon" | "melon_knife"
+): ProjectileState {
+  const mechanics = owner.mechanics.special;
+  const isMelon = kind === "melon";
+  const radius = isMelon ? mechanics.huaqiangMelonRadius : mechanics.huaqiangKnifeRadius;
+  const projectile: ProjectileState = {
+    id: `projectile-${world.nextEntityId}`,
+    team: owner.team,
+    ownerId: owner.id,
+    kind,
+    position: add(owner.position, scale(direction, owner.stats.radius + radius + 2)),
+    velocity: scale(direction, isMelon ? mechanics.huaqiangMelonSpeed : mechanics.huaqiangKnifeSpeed),
+    radius,
+    damage: isMelon ? mechanics.huaqiangMelonDamage : mechanics.huaqiangKnifeDamage,
+    lifetime: isMelon ? mechanics.huaqiangMelonLifetime : mechanics.huaqiangKnifeLifetime,
+    bouncesLeft: 0,
+    piercesLeft: 0,
+    splitCount: 0,
+    childRadiusMultiplier: 1,
+    homingStrength: 0,
+    hitBallIds: [],
+    isChild: false
+  };
+  world.nextEntityId += 1;
+  world.projectiles.push(projectile);
+  return projectile;
+}
+
 function updateProjectiles(world: BattleWorldState, dt: number): void {
   const activeProjectiles: ProjectileState[] = [];
   const spawnedProjectiles: ProjectileState[] = [];
@@ -300,12 +335,18 @@ function updateProjectiles(world: BattleWorldState, dt: number): void {
   for (const projectile of world.projectiles) {
     projectile.lifetime -= dt;
     if (projectile.lifetime <= 0) {
+      if (projectile.kind === "melon") {
+        triggerHuaqiangMelonSplash(world, projectile);
+      }
       continue;
     }
 
     steerProjectile(world, projectile, dt);
     projectile.position = add(projectile.position, scale(projectile.velocity, dt));
     if (!handleProjectileWallBounce(world, projectile)) {
+      if (projectile.kind === "melon") {
+        triggerHuaqiangMelonSplash(world, projectile);
+      }
       continue;
     }
 
@@ -323,12 +364,17 @@ function updateProjectiles(world: BattleWorldState, dt: number): void {
         continue;
       }
 
-      applyDamage(world, owner, target, projectile.damage, projectile.kind === "basketball" ? ["projectile", "special"] : ["projectile"]);
-      if (projectile.kind !== "basketball") {
+      applyDamage(world, owner, target, projectile.damage, getProjectileDamageTags(projectile));
+      if (shouldApplyProjectileOnHitStatuses(projectile)) {
         applyOnHitStatuses(world, owner, target);
       }
       triggerProjectileHitEvent(world, projectile);
       projectile.hitBallIds.push(target.id);
+      if (projectile.kind === "melon") {
+        triggerHuaqiangMelonSplash(world, projectile);
+        keepProjectile = false;
+        break;
+      }
       if (projectile.splitCount > 0 && !projectile.isChild) {
         spawnedProjectiles.push(...splitProjectile(world, owner, projectile));
       }
@@ -348,20 +394,67 @@ function updateProjectiles(world: BattleWorldState, dt: number): void {
   world.projectiles = activeProjectiles.concat(spawnedProjectiles);
 }
 
+function getProjectileDamageTags(projectile: ProjectileState): DamageTag[] {
+  return projectile.kind === "basketball" || projectile.kind === "melon" || projectile.kind === "melon_knife"
+    ? ["projectile", "special"]
+    : ["projectile"];
+}
+
+function shouldApplyProjectileOnHitStatuses(projectile: ProjectileState): boolean {
+  return projectile.kind !== "basketball" && projectile.kind !== "melon" && projectile.kind !== "melon_knife";
+}
+
 function triggerProjectileHitEvent(world: BattleWorldState, projectile: ProjectileState): void {
-  if (projectile.kind !== "basketball") {
+  if (projectile.kind === "basketball") {
+    world.events.push({
+      type: "trait_triggered",
+      tick: world.tick,
+      ballId: projectile.ownerId,
+      traitId: "special_bounce_basketball",
+      trigger: "basketball_hit",
+      position: { ...projectile.position },
+      value: projectile.damage
+    });
+    return;
+  }
+
+  if (projectile.kind === "melon" || projectile.kind === "melon_knife") {
+    world.events.push({
+      type: "trait_triggered",
+      tick: world.tick,
+      ballId: projectile.ownerId,
+      traitId: "special_huaqiang_melon",
+      trigger: projectile.kind === "melon" ? "huaqiang_melon_hit" : "huaqiang_knife_hit",
+      position: { ...projectile.position },
+      value: projectile.damage
+    });
+  }
+}
+
+function triggerHuaqiangMelonSplash(world: BattleWorldState, projectile: ProjectileState): void {
+  const owner = world.balls.find((ball) => ball.id === projectile.ownerId);
+  const splashDamage = owner?.mechanics.special.huaqiangMelonSplashDamage ?? 0;
+  const splashRadius = owner?.mechanics.special.huaqiangMelonSplashRadius ?? 0;
+  if (!owner || splashDamage <= 0 || splashRadius <= 0) {
     return;
   }
 
   world.events.push({
     type: "trait_triggered",
     tick: world.tick,
-    ballId: projectile.ownerId,
-    traitId: "special_bounce_basketball",
-    trigger: "basketball_hit",
+    ballId: owner.id,
+    traitId: "special_huaqiang_melon",
+    trigger: "huaqiang_melon_crack",
     position: { ...projectile.position },
-    value: projectile.damage
+    value: splashDamage
   });
+
+  for (const target of world.balls) {
+    if (!target.alive || target.team === projectile.team || distance(target.position, projectile.position) > splashRadius + target.stats.radius) {
+      continue;
+    }
+    applyDamage(world, owner, target, splashDamage, ["explosion", "special"]);
+  }
 }
 
 function steerProjectile(world: BattleWorldState, projectile: ProjectileState, dt: number): void {
@@ -532,6 +625,38 @@ function resolveBallCollisions(world: BattleWorldState): void {
   }
 }
 
+function resolveSpecialBladeShieldCollisions(world: BattleWorldState): void {
+  for (const source of world.balls) {
+    if (!isBladeShieldBladeActive(source) || source.stats.collisionDamage <= 0) {
+      continue;
+    }
+
+    const bladeRange = source.stats.radius * source.mechanics.special.bladeShieldRangeMultiplier;
+    if (bladeRange <= source.stats.radius) {
+      continue;
+    }
+
+    let nearestTarget: BallState | undefined;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    for (const target of world.balls) {
+      if (!target.alive || target.team === source.team || !canDamagePair(source, target)) {
+        continue;
+      }
+      const currentDistance = distance(source.position, target.position);
+      const bodyCollisionDistance = source.stats.radius + target.stats.radius;
+      const bladeHitDistance = bladeRange + target.stats.radius;
+      if (currentDistance > bodyCollisionDistance && currentDistance <= bladeHitDistance && currentDistance < nearestDistance) {
+        nearestTarget = target;
+        nearestDistance = currentDistance;
+      }
+    }
+
+    if (nearestTarget) {
+      applySpecialBladeShieldHit(world, source, nearestTarget);
+    }
+  }
+}
+
 function resolveSpecialElbowCollisions(world: BattleWorldState): void {
   for (const source of world.balls) {
     if (!canSpecialElbowHit(source)) {
@@ -560,6 +685,23 @@ function resolveSpecialElbowCollisions(world: BattleWorldState): void {
       applySpecialElbowHit(world, source, nearestTarget);
     }
   }
+}
+
+function applySpecialBladeShieldHit(world: BattleWorldState, source: BallState, target: BallState): void {
+  const attack = getSpecialCollisionAttack(world, source, getCollisionDamage(world, source));
+  let defense = applyHajimiGuard(world, target, attack.damage);
+  defense = applyBladeShieldCollisionDefense(world, target, defense);
+  const damageToTarget = applyDamage(world, source, target, defense.damage, ["collision", "special"]);
+  applyOnHitStatuses(world, source, target);
+  applyLifesteal(world, source, damageToTarget);
+  applyReflect(world, target, source, damageToTarget);
+  triggerCollisionExplosion(world, source, { ...target.position });
+  source.collisionTimers[target.id] = source.stats.collisionCooldown;
+  target.collisionTimers[source.id] = target.stats.collisionCooldown;
+
+  const direction = normalize(sub(target.position, source.position), normalize(source.velocity, { x: source.team === "blue" ? 1 : -1, y: 0 }));
+  target.velocity = scale(direction, target.stats.knockback * attack.knockbackMultiplier * defense.selfKnockbackMultiplier);
+  source.velocity = scale(direction, getEffectiveMoveSpeed(source) * 0.75);
 }
 
 function resolvePairCollision(world: BattleWorldState, a: BallState, b: BallState): void {
@@ -591,6 +733,8 @@ function resolvePairCollision(world: BattleWorldState, a: BallState, b: BallStat
     attackB = getSpecialCollisionAttack(world, b, getCollisionDamage(world, b));
     defenseB = applyHajimiGuard(world, b, attackA.damage);
     defenseA = applyHajimiGuard(world, a, attackB.damage);
+    defenseB = applyBladeShieldCollisionDefense(world, b, defenseB);
+    defenseA = applyBladeShieldCollisionDefense(world, a, defenseA);
     const damageToB = applyDamage(world, a, b, defenseB.damage, ["collision"]);
     const damageToA = applyDamage(world, b, a, defenseA.damage, ["collision"]);
     applyOnHitStatuses(world, a, b);
@@ -655,30 +799,52 @@ function getSpecialCollisionAttack(
   damage: number
 ): { damage: number; knockbackMultiplier: number } {
   const { elbowCooldown, elbowDamageMultiplier, elbowKnockbackMultiplier } = source.mechanics.special;
-  if (source.role !== "main" || damage <= 0 || elbowCooldown <= 0 || !canSpecialElbowHit(source)) {
+  if (source.role !== "main" || damage <= 0) {
     return { damage, knockbackMultiplier: 1 };
   }
 
-  source.runtime.specialElbowHitAvailable = false;
-  world.events.push({
-    type: "trait_triggered",
-    tick: world.tick,
-    ballId: source.id,
-    traitId: "special_elbow_strike",
-    trigger: "elbow_hit",
-    position: { ...source.position },
-    value: elbowDamageMultiplier
-  });
+  if (elbowCooldown > 0 && canSpecialElbowHit(source)) {
+    source.runtime.specialElbowHitAvailable = false;
+    world.events.push({
+      type: "trait_triggered",
+      tick: world.tick,
+      ballId: source.id,
+      traitId: "special_elbow_strike",
+      trigger: "elbow_hit",
+      position: { ...source.position },
+      value: elbowDamageMultiplier
+    });
 
-  return {
-    damage: damage * elbowDamageMultiplier,
-    knockbackMultiplier: elbowKnockbackMultiplier
-  };
+    return {
+      damage: damage * elbowDamageMultiplier,
+      knockbackMultiplier: elbowKnockbackMultiplier
+    };
+  }
+
+  if (isBladeShieldBladeActive(source)) {
+    const multiplier = source.mechanics.special.bladeShieldBladeDamageMultiplier;
+    world.events.push({
+      type: "trait_triggered",
+      tick: world.tick,
+      ballId: source.id,
+      traitId: "special_blade_shield_stance",
+      trigger: "blade_shield_hit",
+      position: { ...source.position },
+      value: multiplier
+    });
+    return {
+      damage: damage * multiplier,
+      knockbackMultiplier: 1
+    };
+  }
+
+  return { damage, knockbackMultiplier: 1 };
 }
 
 function applySpecialElbowHit(world: BattleWorldState, source: BallState, target: BallState): void {
   const attack = getSpecialCollisionAttack(world, source, getCollisionDamage(world, source));
-  const defense = applyHajimiGuard(world, target, attack.damage);
+  let defense = applyHajimiGuard(world, target, attack.damage);
+  defense = applyBladeShieldCollisionDefense(world, target, defense);
   const damageToTarget = applyDamage(world, source, target, defense.damage, ["collision", "special"]);
   applyOnHitStatuses(world, source, target);
   applyLifesteal(world, source, damageToTarget);
@@ -723,6 +889,34 @@ function applyHajimiGuard(
   };
 }
 
+function applyBladeShieldCollisionDefense(
+  world: BattleWorldState,
+  target: BallState,
+  defense: { damage: number; selfKnockbackMultiplier: number; attackerKnockbackMultiplier: number }
+): { damage: number; selfKnockbackMultiplier: number; attackerKnockbackMultiplier: number } {
+  if (!isBladeShieldShieldActive(target)) {
+    return defense;
+  }
+
+  const knockbackMultiplier = target.mechanics.special.bladeShieldKnockbackMultiplier;
+  if (knockbackMultiplier > 1) {
+    world.events.push({
+      type: "trait_triggered",
+      tick: world.tick,
+      ballId: target.id,
+      traitId: "special_blade_shield_stance",
+      trigger: "blade_shield_guard_block",
+      position: { ...target.position },
+      value: knockbackMultiplier
+    });
+  }
+
+  return {
+    ...defense,
+    attackerKnockbackMultiplier: defense.attackerKnockbackMultiplier * knockbackMultiplier
+  };
+}
+
 function applyDamage(
   world: BattleWorldState,
   source: BallState | undefined,
@@ -734,7 +928,8 @@ function applyDamage(
     return 0;
   }
   const vulnerableMultiplier = 1 + getVulnerablePercent(target);
-  const reducedAmount = Math.max(0, amount * vulnerableMultiplier * (1 - clamp(target.stats.damageReduction, 0, 0.9)));
+  const statReducedAmount = Math.max(0, amount * vulnerableMultiplier * (1 - clamp(target.stats.damageReduction, 0, 0.9)));
+  const reducedAmount = applyBladeShieldDamageReduction(world, target, statReducedAmount, tags);
   const absorbedAmount = absorbShield(world, target, reducedAmount);
   const finalAmount = Math.max(0, reducedAmount - absorbedAmount);
   if (finalAmount <= 0) {
@@ -756,6 +951,27 @@ function applyDamage(
     target.runtime.lastDamageSourceId = source?.id ?? null;
   }
   return finalAmount;
+}
+
+function applyBladeShieldDamageReduction(world: BattleWorldState, target: BallState, amount: number, tags: DamageTag[]): number {
+  const reduction = target.mechanics.special.bladeShieldDamageReduction;
+  if (!isBladeShieldShieldActive(target) || reduction <= 0 || amount <= 0) {
+    return amount;
+  }
+
+  const reducedAmount = amount * (1 - clamp(reduction, 0, 0.9));
+  if (!tags.includes("dot")) {
+    world.events.push({
+      type: "trait_triggered",
+      tick: world.tick,
+      ballId: target.id,
+      traitId: "special_blade_shield_stance",
+      trigger: "blade_shield_guard_reduce",
+      position: { ...target.position },
+      value: amount - reducedAmount
+    });
+  }
+  return reducedAmount;
 }
 
 function updateStatuses(world: BattleWorldState, dt: number): void {
@@ -890,7 +1106,27 @@ function applyStatusEffect(
 
 function getEffectiveMoveSpeed(ball: BallState): number {
   const elbowSpeedMultiplier = isSpecialElbowActive(ball) ? Math.max(1, ball.mechanics.special.elbowDashSpeedMultiplier) : 1;
-  return ball.stats.moveSpeed * getRuleMoveSpeedMultiplier(ball) * (1 - getMaxStatusValue(ball, "slowPercent", 0.85)) * elbowSpeedMultiplier;
+  const bladeShieldSpeedMultiplier = isBladeShieldShieldActive(ball) ? ball.mechanics.special.bladeShieldMoveSpeedMultiplier : 1;
+  return ball.stats.moveSpeed * getRuleMoveSpeedMultiplier(ball) * (1 - getMaxStatusValue(ball, "slowPercent", 1)) * elbowSpeedMultiplier * bladeShieldSpeedMultiplier;
+}
+
+function isBladeShieldBladeActive(ball: BallState): boolean {
+  return (
+    ball.alive &&
+    ball.role === "main" &&
+    ball.runtime.specialBladeShieldStance === "blade" &&
+    ball.mechanics.special.bladeShieldBladeDuration > 0 &&
+    ball.mechanics.special.bladeShieldBladeDamageMultiplier > 1
+  );
+}
+
+function isBladeShieldShieldActive(ball: BallState): boolean {
+  return (
+    ball.alive &&
+    ball.role === "main" &&
+    ball.runtime.specialBladeShieldStance === "shield" &&
+    ball.mechanics.special.bladeShieldShieldDuration > 0
+  );
 }
 
 function isSpecialElbowActive(ball: BallState): boolean {
@@ -978,12 +1214,52 @@ function updateSpecials(world: BattleWorldState, dt: number): void {
       continue;
     }
 
+    updateSpecialBladeShield(world, ball, dt);
     updateSpecialElbow(world, ball, dt);
     updateSpecialHajimiGuard(world, ball, dt);
+    updateSpecialTigerGaze(world, ball, dt);
+    updateSpecialBlackHand(world, ball, dt);
 
     if (ball.mechanics.special.basketballCooldown > 0) {
       ball.runtime.specialBasketballCooldown = Math.max(0, ball.runtime.specialBasketballCooldown - dt);
     }
+    if (ball.mechanics.special.huaqiangCooldown > 0) {
+      ball.runtime.specialHuaqiangCooldown = Math.max(0, ball.runtime.specialHuaqiangCooldown - dt);
+    }
+  }
+}
+
+function updateSpecialBladeShield(world: BattleWorldState, ball: BallState, dt: number): void {
+  const mechanics = ball.mechanics.special;
+  if (mechanics.bladeShieldBladeDuration <= 0 || mechanics.bladeShieldShieldDuration <= 0) {
+    ball.runtime.specialBladeShieldStance = "none";
+    ball.runtime.specialBladeShieldRemaining = 0;
+    return;
+  }
+
+  if (ball.runtime.specialBladeShieldStance === "none") {
+    ball.runtime.specialBladeShieldStance = "blade";
+    ball.runtime.specialBladeShieldRemaining = mechanics.bladeShieldBladeDuration;
+  }
+
+  ball.runtime.specialBladeShieldRemaining -= dt;
+  while (ball.runtime.specialBladeShieldRemaining <= 0) {
+    if (ball.runtime.specialBladeShieldStance === "blade") {
+      ball.runtime.specialBladeShieldStance = "shield";
+      ball.runtime.specialBladeShieldRemaining += mechanics.bladeShieldShieldDuration;
+    } else {
+      ball.runtime.specialBladeShieldStance = "blade";
+      ball.runtime.specialBladeShieldRemaining += mechanics.bladeShieldBladeDuration;
+    }
+    world.events.push({
+      type: "trait_triggered",
+      tick: world.tick,
+      ballId: ball.id,
+      traitId: "special_blade_shield_stance",
+      trigger: ball.runtime.specialBladeShieldStance === "blade" ? "blade_shield_enter_blade" : "blade_shield_enter_shield",
+      position: { ...ball.position },
+      value: ball.runtime.specialBladeShieldRemaining
+    });
   }
 }
 
@@ -1071,6 +1347,180 @@ function updateSpecialHajimiGuard(world: BattleWorldState, ball: BallState, dt: 
   }
 }
 
+function updateSpecialTigerGaze(world: BattleWorldState, ball: BallState, dt: number): void {
+  const { tigerGazeCooldown, tigerGazeDuration, tigerGazeSlowPercent, tigerGazeVulnerablePercent } = ball.mechanics.special;
+  if (tigerGazeCooldown <= 0 || tigerGazeDuration <= 0 || (tigerGazeSlowPercent <= 0 && tigerGazeVulnerablePercent <= 0)) {
+    ball.runtime.specialTigerGazeTargetId = null;
+    return;
+  }
+
+  syncTigerGazeTarget(world, ball);
+  ball.runtime.specialTigerGazeCooldown = Math.max(0, ball.runtime.specialTigerGazeCooldown - dt);
+  if (ball.runtime.specialTigerGazeCooldown > 0) {
+    return;
+  }
+
+  const target = findTarget(world, ball);
+  if (!target) {
+    return;
+  }
+
+  if (tigerGazeSlowPercent > 0) {
+    applyStatusEffect(world, ball, target, {
+      traitId: "special_dongbei_tiger_gaze",
+      statusId: "slow",
+      chance: 1,
+      duration: tigerGazeDuration,
+      tickDamage: 0,
+      slowPercent: tigerGazeSlowPercent,
+      vulnerablePercent: 0
+    });
+  }
+  if (tigerGazeVulnerablePercent > 0) {
+    applyStatusEffect(world, ball, target, {
+      traitId: "special_dongbei_tiger_gaze",
+      statusId: "vulnerable",
+      chance: 1,
+      duration: tigerGazeDuration,
+      tickDamage: 0,
+      slowPercent: 0,
+      vulnerablePercent: tigerGazeVulnerablePercent
+    });
+  }
+
+  ball.runtime.specialTigerGazeTargetId = target.id;
+  ball.runtime.specialTigerGazeCooldown = tigerGazeCooldown;
+  world.events.push({
+    type: "trait_triggered",
+    tick: world.tick,
+    ballId: ball.id,
+    traitId: "special_dongbei_tiger_gaze",
+    trigger: "tiger_gaze_lock",
+    position: { ...target.position },
+    value: tigerGazeDuration
+  });
+}
+
+function syncTigerGazeTarget(world: BattleWorldState, source: BallState): void {
+  const targetId = source.runtime.specialTigerGazeTargetId;
+  if (!targetId) {
+    return;
+  }
+  const target = world.balls.find((ball) => ball.id === targetId);
+  const active = target?.runtime.statuses.some((status) => status.traitId === "special_dongbei_tiger_gaze" && status.remaining > 0);
+  if (!target?.alive || !active) {
+    source.runtime.specialTigerGazeTargetId = null;
+  }
+}
+
+function updateSpecialBlackHand(world: BattleWorldState, ball: BallState, dt: number): void {
+  const mechanics = ball.mechanics.special;
+  if (
+    mechanics.blackHandCooldown <= 0 ||
+    mechanics.blackHandWarningDuration <= 0 ||
+    mechanics.blackHandGrabDuration <= 0 ||
+    mechanics.blackHandDragStrength <= 0
+  ) {
+    ball.runtime.specialBlackHandPhase = "idle";
+    ball.runtime.specialBlackHandTargetId = null;
+    ball.runtime.specialBlackHandPhaseRemaining = 0;
+    return;
+  }
+
+  if (ball.runtime.specialBlackHandPhase === "idle") {
+    ball.runtime.specialBlackHandCooldown = Math.max(0, ball.runtime.specialBlackHandCooldown - dt);
+    if (ball.runtime.specialBlackHandCooldown > 0) {
+      return;
+    }
+    const target = findTarget(world, ball);
+    if (!target) {
+      return;
+    }
+    ball.runtime.specialBlackHandPhase = "warning";
+    ball.runtime.specialBlackHandPhaseRemaining = mechanics.blackHandWarningDuration;
+    ball.runtime.specialBlackHandTargetId = target.id;
+    ball.runtime.specialBlackHandCooldown = mechanics.blackHandCooldown;
+    world.events.push({
+      type: "trait_triggered",
+      tick: world.tick,
+      ballId: ball.id,
+      traitId: "special_shenying_black_hand",
+      trigger: "black_hand_warning",
+      position: { ...target.position },
+      value: mechanics.blackHandWarningDuration
+    });
+    return;
+  }
+
+  const target = ball.runtime.specialBlackHandTargetId ? world.balls.find((candidate) => candidate.id === ball.runtime.specialBlackHandTargetId) : undefined;
+  if (!target?.alive || target.team === ball.team) {
+    resetBlackHandRuntime(ball);
+    return;
+  }
+
+  ball.runtime.specialBlackHandPhaseRemaining = Math.max(0, ball.runtime.specialBlackHandPhaseRemaining - dt);
+  if (ball.runtime.specialBlackHandPhase === "warning" && ball.runtime.specialBlackHandPhaseRemaining <= 0) {
+    ball.runtime.specialBlackHandPhase = "grab";
+    ball.runtime.specialBlackHandPhaseRemaining = mechanics.blackHandGrabDuration;
+    world.events.push({
+      type: "trait_triggered",
+      tick: world.tick,
+      ballId: ball.id,
+      traitId: "special_shenying_black_hand",
+      trigger: "black_hand_grab",
+      position: { ...target.position },
+      value: mechanics.blackHandGrabDuration
+    });
+    return;
+  }
+
+  if (ball.runtime.specialBlackHandPhase === "grab" && ball.runtime.specialBlackHandPhaseRemaining <= 0) {
+    applyStatusEffect(world, ball, target, {
+      traitId: "special_shenying_black_hand",
+      statusId: "slow",
+      chance: 1,
+      duration: mechanics.blackHandSlowDuration,
+      tickDamage: 0,
+      slowPercent: mechanics.blackHandSlowPercent,
+      vulnerablePercent: 0
+    });
+    world.events.push({
+      type: "trait_triggered",
+      tick: world.tick,
+      ballId: ball.id,
+      traitId: "special_shenying_black_hand",
+      trigger: "black_hand_release",
+      position: { ...target.position },
+      value: mechanics.blackHandSlowDuration
+    });
+    resetBlackHandRuntime(ball);
+  }
+}
+
+function resetBlackHandRuntime(ball: BallState): void {
+  ball.runtime.specialBlackHandPhase = "idle";
+  ball.runtime.specialBlackHandPhaseRemaining = 0;
+  ball.runtime.specialBlackHandTargetId = null;
+}
+
+function applySpecialBlackHandDrag(world: BattleWorldState, dt: number): void {
+  for (const source of world.balls) {
+    if (!source.alive || source.runtime.specialBlackHandPhase !== "grab" || !source.runtime.specialBlackHandTargetId) {
+      continue;
+    }
+    const target = world.balls.find((ball) => ball.id === source.runtime.specialBlackHandTargetId);
+    if (!target?.alive || target.team === source.team) {
+      resetBlackHandRuntime(source);
+      continue;
+    }
+    const direction = normalize(sub(source.position, target.position), { x: source.team === "blue" ? -1 : 1, y: 0 });
+    const pullDistance = Math.min(distance(source.position, target.position), source.mechanics.special.blackHandDragStrength * dt);
+    target.position = add(target.position, scale(direction, pullDistance));
+    target.velocity = scale(direction, source.mechanics.special.blackHandDragStrength * 0.45);
+    clampBallToArena(world, target);
+  }
+}
+
 function fireSpecialBasketballs(world: BattleWorldState): void {
   for (const ball of world.balls) {
     const mechanics = ball.mechanics.special;
@@ -1104,6 +1554,55 @@ function fireSpecialBasketballs(world: BattleWorldState): void {
       value: countTeamBasketballs(world, ball.team)
     });
   }
+}
+
+function fireSpecialHuaqiang(world: BattleWorldState): void {
+  for (const ball of world.balls) {
+    const mechanics = ball.mechanics.special;
+    if (
+      !ball.alive ||
+      ball.role !== "main" ||
+      mechanics.huaqiangCooldown <= 0 ||
+      ball.runtime.specialHuaqiangCooldown > 0 ||
+      !canFireHuaqiang(ball)
+    ) {
+      continue;
+    }
+
+    const target = findTarget(world, ball);
+    if (!target) {
+      continue;
+    }
+
+    const kind = ball.runtime.specialHuaqiangNextKind;
+    const direction = normalize(sub(target.position, ball.position), normalize(ball.velocity, { x: ball.team === "blue" ? 1 : -1, y: 0 }));
+    spawnHuaqiangProjectile(world, ball, direction, kind);
+    ball.runtime.specialHuaqiangCooldown = mechanics.huaqiangCooldown;
+    ball.runtime.specialHuaqiangNextKind = kind === "melon" ? "melon_knife" : "melon";
+    world.events.push({
+      type: "trait_triggered",
+      tick: world.tick,
+      ballId: ball.id,
+      traitId: "special_huaqiang_melon",
+      trigger: kind === "melon" ? "huaqiang_melon_throw" : "huaqiang_knife_throw",
+      position: { ...ball.position },
+      value: kind === "melon" ? mechanics.huaqiangMelonDamage : mechanics.huaqiangKnifeDamage
+    });
+  }
+}
+
+function canFireHuaqiang(ball: BallState): boolean {
+  const mechanics = ball.mechanics.special;
+  return (
+    mechanics.huaqiangMelonDamage > 0 &&
+    mechanics.huaqiangMelonSpeed > 0 &&
+    mechanics.huaqiangMelonRadius > 0 &&
+    mechanics.huaqiangMelonLifetime > 0 &&
+    mechanics.huaqiangKnifeDamage > 0 &&
+    mechanics.huaqiangKnifeSpeed > 0 &&
+    mechanics.huaqiangKnifeRadius > 0 &&
+    mechanics.huaqiangKnifeLifetime > 0
+  );
 }
 
 function triggerLowHpRage(world: BattleWorldState, ball: BallState): void {
@@ -1454,7 +1953,12 @@ function createChildMechanics(mechanics: BallMechanics, role: "clone" | "split")
       basketballCooldown: 0,
       basketballLimit: 0,
       hajimiCooldown: 0,
-      hajimiDuration: 0
+      hajimiDuration: 0,
+      bladeShieldBladeDuration: 0,
+      bladeShieldShieldDuration: 0,
+      tigerGazeCooldown: 0,
+      huaqiangCooldown: 0,
+      blackHandCooldown: 0
     }
   };
 }

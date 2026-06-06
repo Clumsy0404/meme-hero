@@ -30,6 +30,11 @@ export function getSnapshot(world: BattleWorldState): WorldSnapshot {
       specialElbowRange: ball.stats.radius * ball.mechanics.special.elbowHitboxRangeMultiplier,
       specialElbowRadius: ball.stats.radius * ball.mechanics.special.elbowHitboxRadiusMultiplier,
       specialHajimiGuardRemaining: ball.runtime.specialHajimiGuardRemaining,
+      specialBladeShieldStance: ball.runtime.specialBladeShieldStance,
+      specialBladeShieldRemaining: ball.runtime.specialBladeShieldRemaining,
+      specialTigerGazeTargetId: ball.runtime.specialTigerGazeTargetId,
+      specialBlackHandPhase: ball.runtime.specialBlackHandPhase,
+      specialBlackHandTargetId: ball.runtime.specialBlackHandTargetId,
       position: { ...ball.position }
     })),
     projectiles: world.projectiles.map((projectile) => ({

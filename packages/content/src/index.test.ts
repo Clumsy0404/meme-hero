@@ -18,7 +18,7 @@ describe("content bootstrap", () => {
   });
 
   it("ships the MVP trait library", () => {
-    expect(traitDefinitions).toHaveLength(33);
+    expect(traitDefinitions).toHaveLength(37);
     expect(traitDefinitions.filter((trait) => trait.mainType === "attribute")).toHaveLength(6);
     expect(traitDefinitions.every((trait) => trait.name.length > 0 && trait.description.length > 0)).toBe(true);
   });
@@ -91,6 +91,19 @@ describe("content bootstrap", () => {
     expect(invalidCount.issues.some((issue) => issue.code === "invalid_trait_count")).toBe(true);
     expect(unknownTrait.issues.some((issue) => issue.code === "unknown_trait")).toBe(true);
     expect(repeatedUnique.issues.some((issue) => issue.code === "unique_trait_repeated")).toBe(true);
+  });
+
+  it("limits each build to one legendary trait", () => {
+    const result = validateBuildConfig({
+      version: "0.1",
+      name: "传说限制测试球",
+      skin: "default_blue",
+      baseModel: "default",
+      traits: ["special_elbow_strike", "special_bounce_basketball", "hp_boost"]
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.issues.some((issue) => issue.code === "legendary_trait_limit_exceeded")).toBe(true);
   });
 
   it("uses the shared fixed trait slot count", () => {

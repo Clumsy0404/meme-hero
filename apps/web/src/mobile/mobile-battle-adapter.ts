@@ -16,6 +16,7 @@ export type MobileBattleSnapshot = {
   maxTime: number;
   arena: { w: number; h: number };
   combatants: MobileCombatant[];
+  links: MobileBattleLink[];
   projectiles: MobileProjectile[];
   summons: MobileSummon[];
   floaters: MobileFloater[];
@@ -23,7 +24,7 @@ export type MobileBattleSnapshot = {
   sfx: MobileSfxKey[];
 };
 
-export type MobileSpecialEffect = "elbowReady" | "hajimiGuard";
+export type MobileSpecialEffect = "elbowReady" | "hajimiGuard" | "bladeStance" | "shieldStance" | "tigerGaze" | "blackHandWarning" | "blackHandGrab";
 
 export type MobileCombatant = {
   side: "me" | "foe";
@@ -58,6 +59,13 @@ export type MobileProjectile = {
   r: number;
   color: string;
   owner: "me" | "foe";
+};
+
+export type MobileBattleLink = {
+  id: string;
+  kind: "tigerGaze" | "blackHandWarning" | "blackHandGrab";
+  from: { x: number; y: number };
+  to: { x: number; y: number };
 };
 
 export type MobileSummon = {
@@ -144,6 +152,7 @@ export function toMobileBattleSnapshot(
           }
         : fallbackCombatant("foe", opponent.name, opponent.color, redBuild.traits)
     ],
+    links: getSpecialLinks(snapshot),
     projectiles: snapshot.projectiles.map((projectile) => ({
       id: projectile.id,
       kind: projectile.kind,
@@ -219,7 +228,55 @@ function getSpecialEffects(ball: WorldSnapshot["balls"][number]): MobileSpecialE
   if (ball.specialHajimiGuardRemaining > 0) {
     effects.push("hajimiGuard");
   }
+  if (ball.specialBladeShieldStance === "blade") {
+    effects.push("bladeStance");
+  }
+  if (ball.specialBladeShieldStance === "shield") {
+    effects.push("shieldStance");
+  }
+  if (ball.specialTigerGazeTargetId) {
+    effects.push("tigerGaze");
+  }
+  if (ball.specialBlackHandPhase === "warning") {
+    effects.push("blackHandWarning");
+  }
+  if (ball.specialBlackHandPhase === "grab") {
+    effects.push("blackHandGrab");
+  }
   return effects;
+}
+
+function getSpecialLinks(snapshot: WorldSnapshot): MobileBattleLink[] {
+  const ballsById = new Map(snapshot.balls.map((ball) => [ball.id, ball]));
+  const links: MobileBattleLink[] = [];
+  for (const source of snapshot.balls) {
+    if (!source.alive) {
+      continue;
+    }
+    if (source.specialTigerGazeTargetId) {
+      const target = ballsById.get(source.specialTigerGazeTargetId);
+      if (target?.alive) {
+        links.push({
+          id: `gaze-${source.id}-${target.id}`,
+          kind: "tigerGaze",
+          from: { ...source.position },
+          to: { ...target.position }
+        });
+      }
+    }
+    if (source.specialBlackHandTargetId && source.specialBlackHandPhase !== "idle") {
+      const target = ballsById.get(source.specialBlackHandTargetId);
+      if (target?.alive) {
+        links.push({
+          id: `blackhand-${source.id}-${target.id}`,
+          kind: source.specialBlackHandPhase === "grab" ? "blackHandGrab" : "blackHandWarning",
+          from: { ...source.position },
+          to: { ...target.position }
+        });
+      }
+    }
+  }
+  return links;
 }
 
 function getSpecialElbow(ball: WorldSnapshot["balls"][number]): MobileCombatant["elbow"] {
@@ -302,6 +359,27 @@ function eventToSfx(event: BattleEvent): MobileSfxKey | undefined {
   }
   if (event.trigger === "hajimi_guard_ready" || event.trigger === "hajimi_guard_consume") {
     return "special.hajimi_guard";
+  }
+  if (event.trigger === "blade_shield_hit") {
+    return "special.blade_shield_hit";
+  }
+  if (event.trigger === "blade_shield_guard_block" || event.trigger === "blade_shield_guard_reduce") {
+    return "special.blade_shield_guard";
+  }
+  if (event.trigger === "tiger_gaze_lock") {
+    return "special.dongbei_tiger_gaze";
+  }
+  if (
+    event.trigger === "huaqiang_melon_throw" ||
+    event.trigger === "huaqiang_knife_throw" ||
+    event.trigger === "huaqiang_melon_crack" ||
+    event.trigger === "huaqiang_melon_hit" ||
+    event.trigger === "huaqiang_knife_hit"
+  ) {
+    return "special.huaqiang_melon";
+  }
+  if (event.trigger === "black_hand_grab") {
+    return "special.shenying_black_hand";
   }
   return undefined;
 }

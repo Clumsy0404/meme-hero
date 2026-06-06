@@ -145,7 +145,39 @@ export type SpecialMechanics = {
   hajimiCollisionReduction: number;
   hajimiSelfKnockbackMultiplier: number;
   hajimiAttackerKnockbackMultiplier: number;
+  bladeShieldBladeDuration: number;
+  bladeShieldShieldDuration: number;
+  bladeShieldBladeDamageMultiplier: number;
+  bladeShieldRangeMultiplier: number;
+  bladeShieldDamageReduction: number;
+  bladeShieldKnockbackMultiplier: number;
+  bladeShieldMoveSpeedMultiplier: number;
+  tigerGazeCooldown: number;
+  tigerGazeDuration: number;
+  tigerGazeSlowPercent: number;
+  tigerGazeVulnerablePercent: number;
+  huaqiangCooldown: number;
+  huaqiangMelonDamage: number;
+  huaqiangMelonSplashDamage: number;
+  huaqiangMelonSplashRadius: number;
+  huaqiangMelonSpeed: number;
+  huaqiangMelonRadius: number;
+  huaqiangMelonLifetime: number;
+  huaqiangKnifeDamage: number;
+  huaqiangKnifeSpeed: number;
+  huaqiangKnifeRadius: number;
+  huaqiangKnifeLifetime: number;
+  blackHandCooldown: number;
+  blackHandWarningDuration: number;
+  blackHandGrabDuration: number;
+  blackHandDragStrength: number;
+  blackHandSlowPercent: number;
+  blackHandSlowDuration: number;
 };
+
+export type BladeShieldStance = "none" | "blade" | "shield";
+export type BlackHandPhase = "idle" | "warning" | "grab";
+export type HuaqiangProjectileKind = "melon" | "melon_knife";
 
 export type BallRuntimeState = {
   lifestealWindowStart: number;
@@ -175,11 +207,21 @@ export type BallRuntimeState = {
   specialBasketballCooldown: number;
   specialHajimiCooldown: number;
   specialHajimiGuardRemaining: number;
+  specialBladeShieldStance: BladeShieldStance;
+  specialBladeShieldRemaining: number;
+  specialTigerGazeCooldown: number;
+  specialTigerGazeTargetId: string | null;
+  specialHuaqiangCooldown: number;
+  specialHuaqiangNextKind: HuaqiangProjectileKind;
+  specialBlackHandCooldown: number;
+  specialBlackHandPhase: BlackHandPhase;
+  specialBlackHandPhaseRemaining: number;
+  specialBlackHandTargetId: string | null;
 };
 
 export type DamageTag = "collision" | "projectile" | "dot" | "explosion" | "reflect" | "special";
 
-export type ProjectileKind = "basic" | "child" | "turret" | "basketball";
+export type ProjectileKind = "basic" | "child" | "turret" | "basketball" | HuaqiangProjectileKind;
 
 export type ProjectileState = {
   id: string;
@@ -311,6 +353,11 @@ export type RenderBall = {
   specialElbowRange: number;
   specialElbowRadius: number;
   specialHajimiGuardRemaining: number;
+  specialBladeShieldStance: BladeShieldStance;
+  specialBladeShieldRemaining: number;
+  specialTigerGazeTargetId: string | null;
+  specialBlackHandPhase: BlackHandPhase;
+  specialBlackHandTargetId: string | null;
   position: Vec2;
 };
 

@@ -930,6 +930,131 @@ describe("sim bootstrap", () => {
     expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "hajimi_guard_consume")).toBe(false);
   });
 
+  it("cycles special blade shield stances and expands blade hits", () => {
+    const world = createBattle(
+      makeMatch(["special_blade_shield_stance", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 360, height: 180 }
+    );
+    const [blue, red] = placeSeparatedMainBalls(world, 60, 180, 90);
+    blue.stats.moveSpeed = 0;
+    red.stats.moveSpeed = 0;
+    red.stats.collisionDamage = 0;
+    const hpBefore = red.hp;
+
+    stepBattle(world, 1 / 60, 0);
+
+    expect(hpBefore - red.hp).toBeCloseTo(10);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "blade_shield_hit")).toBe(true);
+
+    stepBattle(world, 5, 0);
+    expect(blue.runtime.specialBladeShieldStance).toBe("shield");
+
+    stepBattle(world, 5, 0);
+    expect(blue.runtime.specialBladeShieldStance).toBe("blade");
+  });
+
+  it("reduces all damage and rebounds collision in special blade shield guard stance", () => {
+    const world = createBattle(
+      makeMatch(hpStackTraits, ["special_blade_shield_stance", "hp_boost", "hp_boost"]),
+      { id: "test", width: 240, height: 180 }
+    );
+    const [blue, red] = placeOverlappingMainBalls(world);
+    red.runtime.specialBladeShieldStance = "shield";
+    red.runtime.specialBladeShieldRemaining = 5;
+    red.stats.collisionDamage = 0;
+    const hpBefore = red.hp;
+
+    stepBattle(world, 1 / 60, 0);
+
+    expect(hpBefore - red.hp).toBeCloseTo(8 * 0.7);
+    expect(Math.hypot(blue.velocity.x, blue.velocity.y)).toBeCloseTo(blue.stats.knockback * 1.25);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "blade_shield_guard_reduce")).toBe(true);
+  });
+
+  it("locks the nearest enemy with special tiger gaze", () => {
+    const world = createBattle(
+      makeMatch(["special_dongbei_tiger_gaze", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 480, height: 240 }
+    );
+    const [blue, red] = placeSeparatedMainBalls(world, 100, 380, 120);
+    blue.runtime.specialTigerGazeCooldown = 0;
+
+    stepBattle(world, 1 / 60, 1);
+
+    expect(blue.runtime.specialTigerGazeTargetId).toBe(red.id);
+    expect(red.runtime.statuses.some((status) => status.id === "slow" && status.slowPercent === 1)).toBe(true);
+    expect(red.runtime.statuses.some((status) => status.id === "vulnerable" && status.vulnerablePercent === 0.1)).toBe(true);
+    expect(Math.hypot(red.velocity.x, red.velocity.y)).toBeCloseTo(0);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "tiger_gaze_lock")).toBe(true);
+  });
+
+  it("fires special huaqiang melon and knife projectiles", () => {
+    const world = createBattle(
+      makeMatch(["special_huaqiang_melon", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 720, height: 240 }
+    );
+    const [blue] = placeSeparatedMainBalls(world, 100, 620, 120);
+    blue.runtime.specialHuaqiangCooldown = 0;
+
+    stepBattle(world, 1 / 60, 0);
+
+    expect(world.projectiles.some((projectile) => projectile.kind === "melon" && projectile.damage === 2)).toBe(true);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "huaqiang_melon_throw")).toBe(true);
+
+    blue.runtime.specialHuaqiangCooldown = 0;
+    stepBattle(world, 1 / 60, 0);
+
+    const knife = world.projectiles.find((projectile) => projectile.kind === "melon_knife");
+    expect(knife?.damage).toBe(3);
+    expect(Math.hypot(knife!.velocity.x, knife!.velocity.y)).toBeCloseTo(480);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "huaqiang_knife_throw")).toBe(true);
+  });
+
+  it("cracks special huaqiang melon for splash damage", () => {
+    const world = createBattle(
+      makeMatch(["special_huaqiang_melon", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 360, height: 240 }
+    );
+    const [blue, red] = placeSeparatedMainBalls(world, 100, 235, 120);
+    blue.stats.moveSpeed = 0;
+    red.stats.moveSpeed = 0;
+    blue.runtime.specialHuaqiangCooldown = 0;
+    const hpBefore = red.hp;
+
+    stepBattle(world, 1 / 60, 0);
+
+    expect(hpBefore - red.hp).toBeCloseTo(4);
+    expect(world.projectiles.filter((projectile) => projectile.kind === "melon")).toHaveLength(0);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "huaqiang_melon_crack")).toBe(true);
+  });
+
+  it("warns, grabs, drags, and slows with special black hand", () => {
+    const world = createBattle(
+      makeMatch(["special_shenying_black_hand", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 480, height: 240 }
+    );
+    const [blue, red] = placeSeparatedMainBalls(world, 100, 380, 120);
+    blue.stats.moveSpeed = 0;
+    red.stats.moveSpeed = 0;
+    blue.runtime.specialBlackHandCooldown = 0;
+
+    stepBattle(world, 1 / 60, 0);
+    expect(blue.runtime.specialBlackHandPhase).toBe("warning");
+    expect(blue.runtime.specialBlackHandTargetId).toBe(red.id);
+
+    stepBattle(world, 0.5, 0);
+    expect(blue.runtime.specialBlackHandPhase).toBe("grab");
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "black_hand_grab")).toBe(true);
+
+    const xBeforeDrag = red.position.x;
+    stepBattle(world, 0.2, 0);
+    expect(red.position.x).toBeLessThan(xBeforeDrag);
+
+    stepBattle(world, 1.1, 0);
+    expect(blue.runtime.specialBlackHandPhase).toBe("idle");
+    expect(red.runtime.statuses.some((status) => status.id === "slow" && status.slowPercent === 0.5)).toBe(true);
+  });
+
   it("triggers low hp rage and temporarily increases movement speed", () => {
     const world = createBattle(
       makeMatch(["low_hp_rage", "hp_boost", "hp_boost"], hpStackTraits),

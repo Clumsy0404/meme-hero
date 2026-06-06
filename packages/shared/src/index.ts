@@ -10,6 +10,7 @@ export const TRAITS_PER_BUILD = 3;
 export type TraitId = string;
 
 export type TraitType = "attribute" | "collision" | "projectile" | "summon" | "status" | "rule";
+export type TraitRarity = "normal" | "legendary";
 
 export type RepeatRule = { kind: "unique" } | { kind: "stackable"; maxStacks?: number };
 
@@ -106,6 +107,34 @@ export type SpecialTraitConfig = {
   hajimiCollisionReduction?: number;
   hajimiSelfKnockbackMultiplier?: number;
   hajimiAttackerKnockbackMultiplier?: number;
+  bladeShieldBladeDuration?: number;
+  bladeShieldShieldDuration?: number;
+  bladeShieldBladeDamageMultiplier?: number;
+  bladeShieldRangeMultiplier?: number;
+  bladeShieldDamageReduction?: number;
+  bladeShieldKnockbackMultiplier?: number;
+  bladeShieldMoveSpeedMultiplier?: number;
+  tigerGazeCooldown?: number;
+  tigerGazeDuration?: number;
+  tigerGazeSlowPercent?: number;
+  tigerGazeVulnerablePercent?: number;
+  huaqiangCooldown?: number;
+  huaqiangMelonDamage?: number;
+  huaqiangMelonSplashDamage?: number;
+  huaqiangMelonSplashRadius?: number;
+  huaqiangMelonSpeed?: number;
+  huaqiangMelonRadius?: number;
+  huaqiangMelonLifetime?: number;
+  huaqiangKnifeDamage?: number;
+  huaqiangKnifeSpeed?: number;
+  huaqiangKnifeRadius?: number;
+  huaqiangKnifeLifetime?: number;
+  blackHandCooldown?: number;
+  blackHandWarningDuration?: number;
+  blackHandGrabDuration?: number;
+  blackHandDragStrength?: number;
+  blackHandSlowPercent?: number;
+  blackHandSlowDuration?: number;
 };
 
 export type TraitNumericConfig = {
@@ -123,6 +152,7 @@ export type TraitDefinition = {
   name: string;
   subtitle: string;
   mainType: TraitType;
+  rarity?: TraitRarity;
   tags: string[];
   repeatRule: RepeatRule;
   description: string;
@@ -200,7 +230,8 @@ export type BuildValidationIssueCode =
   | "invalid_trait_count"
   | "unknown_trait"
   | "unique_trait_repeated"
-  | "stack_limit_exceeded";
+  | "stack_limit_exceeded"
+  | "legendary_trait_limit_exceeded";
 
 export type BuildValidationIssue = {
   code: BuildValidationIssueCode;

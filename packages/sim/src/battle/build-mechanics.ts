@@ -122,7 +122,35 @@ export const emptySpecialMechanics: SpecialMechanics = {
   hajimiDuration: 0,
   hajimiCollisionReduction: 0,
   hajimiSelfKnockbackMultiplier: 1,
-  hajimiAttackerKnockbackMultiplier: 1
+  hajimiAttackerKnockbackMultiplier: 1,
+  bladeShieldBladeDuration: 0,
+  bladeShieldShieldDuration: 0,
+  bladeShieldBladeDamageMultiplier: 1,
+  bladeShieldRangeMultiplier: 1,
+  bladeShieldDamageReduction: 0,
+  bladeShieldKnockbackMultiplier: 1,
+  bladeShieldMoveSpeedMultiplier: 1,
+  tigerGazeCooldown: 0,
+  tigerGazeDuration: 0,
+  tigerGazeSlowPercent: 0,
+  tigerGazeVulnerablePercent: 0,
+  huaqiangCooldown: 0,
+  huaqiangMelonDamage: 0,
+  huaqiangMelonSplashDamage: 0,
+  huaqiangMelonSplashRadius: 0,
+  huaqiangMelonSpeed: 0,
+  huaqiangMelonRadius: 0,
+  huaqiangMelonLifetime: 0,
+  huaqiangKnifeDamage: 0,
+  huaqiangKnifeSpeed: 0,
+  huaqiangKnifeRadius: 0,
+  huaqiangKnifeLifetime: 0,
+  blackHandCooldown: 0,
+  blackHandWarningDuration: 0,
+  blackHandGrabDuration: 0,
+  blackHandDragStrength: 0,
+  blackHandSlowPercent: 0,
+  blackHandSlowDuration: 0
 };
 
 export function createMechanicsForBuild(build: BuildConfig, overrides?: BattleBalanceOverrides): BallMechanics {
@@ -259,6 +287,46 @@ export function createMechanicsForBuild(build: BuildConfig, overrides?: BattleBa
         special.hajimiAttackerKnockbackMultiplier,
         specialConfig.hajimiAttackerKnockbackMultiplier ?? special.hajimiAttackerKnockbackMultiplier
       );
+      special.bladeShieldBladeDuration = Math.max(special.bladeShieldBladeDuration, specialConfig.bladeShieldBladeDuration ?? 0);
+      special.bladeShieldShieldDuration = Math.max(special.bladeShieldShieldDuration, specialConfig.bladeShieldShieldDuration ?? 0);
+      special.bladeShieldBladeDamageMultiplier = Math.max(
+        special.bladeShieldBladeDamageMultiplier,
+        specialConfig.bladeShieldBladeDamageMultiplier ?? special.bladeShieldBladeDamageMultiplier
+      );
+      special.bladeShieldRangeMultiplier = Math.max(
+        special.bladeShieldRangeMultiplier,
+        specialConfig.bladeShieldRangeMultiplier ?? special.bladeShieldRangeMultiplier
+      );
+      special.bladeShieldDamageReduction = Math.max(special.bladeShieldDamageReduction, specialConfig.bladeShieldDamageReduction ?? 0);
+      special.bladeShieldKnockbackMultiplier = Math.max(
+        special.bladeShieldKnockbackMultiplier,
+        specialConfig.bladeShieldKnockbackMultiplier ?? special.bladeShieldKnockbackMultiplier
+      );
+      special.bladeShieldMoveSpeedMultiplier = Math.min(
+        special.bladeShieldMoveSpeedMultiplier,
+        specialConfig.bladeShieldMoveSpeedMultiplier ?? special.bladeShieldMoveSpeedMultiplier
+      );
+      special.tigerGazeCooldown = Math.max(special.tigerGazeCooldown, specialConfig.tigerGazeCooldown ?? 0);
+      special.tigerGazeDuration = Math.max(special.tigerGazeDuration, specialConfig.tigerGazeDuration ?? 0);
+      special.tigerGazeSlowPercent = Math.max(special.tigerGazeSlowPercent, specialConfig.tigerGazeSlowPercent ?? 0);
+      special.tigerGazeVulnerablePercent = Math.max(special.tigerGazeVulnerablePercent, specialConfig.tigerGazeVulnerablePercent ?? 0);
+      special.huaqiangCooldown = Math.max(special.huaqiangCooldown, specialConfig.huaqiangCooldown ?? 0);
+      special.huaqiangMelonDamage = Math.max(special.huaqiangMelonDamage, specialConfig.huaqiangMelonDamage ?? 0);
+      special.huaqiangMelonSplashDamage = Math.max(special.huaqiangMelonSplashDamage, specialConfig.huaqiangMelonSplashDamage ?? 0);
+      special.huaqiangMelonSplashRadius = Math.max(special.huaqiangMelonSplashRadius, specialConfig.huaqiangMelonSplashRadius ?? 0);
+      special.huaqiangMelonSpeed = Math.max(special.huaqiangMelonSpeed, specialConfig.huaqiangMelonSpeed ?? 0);
+      special.huaqiangMelonRadius = Math.max(special.huaqiangMelonRadius, specialConfig.huaqiangMelonRadius ?? 0);
+      special.huaqiangMelonLifetime = Math.max(special.huaqiangMelonLifetime, specialConfig.huaqiangMelonLifetime ?? 0);
+      special.huaqiangKnifeDamage = Math.max(special.huaqiangKnifeDamage, specialConfig.huaqiangKnifeDamage ?? 0);
+      special.huaqiangKnifeSpeed = Math.max(special.huaqiangKnifeSpeed, specialConfig.huaqiangKnifeSpeed ?? 0);
+      special.huaqiangKnifeRadius = Math.max(special.huaqiangKnifeRadius, specialConfig.huaqiangKnifeRadius ?? 0);
+      special.huaqiangKnifeLifetime = Math.max(special.huaqiangKnifeLifetime, specialConfig.huaqiangKnifeLifetime ?? 0);
+      special.blackHandCooldown = Math.max(special.blackHandCooldown, specialConfig.blackHandCooldown ?? 0);
+      special.blackHandWarningDuration = Math.max(special.blackHandWarningDuration, specialConfig.blackHandWarningDuration ?? 0);
+      special.blackHandGrabDuration = Math.max(special.blackHandGrabDuration, specialConfig.blackHandGrabDuration ?? 0);
+      special.blackHandDragStrength = Math.max(special.blackHandDragStrength, specialConfig.blackHandDragStrength ?? 0);
+      special.blackHandSlowPercent = Math.max(special.blackHandSlowPercent, specialConfig.blackHandSlowPercent ?? 0);
+      special.blackHandSlowDuration = Math.max(special.blackHandSlowDuration, specialConfig.blackHandSlowDuration ?? 0);
     }
   }
 
@@ -330,7 +398,17 @@ export function createRuntimeState(mechanics?: BallMechanics): BallRuntimeState 
     specialElbowHitAvailable: false,
     specialBasketballCooldown: special?.basketballCooldown ?? 0,
     specialHajimiCooldown: special?.hajimiCooldown ?? 0,
-    specialHajimiGuardRemaining: 0
+    specialHajimiGuardRemaining: 0,
+    specialBladeShieldStance: special && special.bladeShieldBladeDuration > 0 ? "blade" : "none",
+    specialBladeShieldRemaining: special?.bladeShieldBladeDuration ?? 0,
+    specialTigerGazeCooldown: special?.tigerGazeCooldown ?? 0,
+    specialTigerGazeTargetId: null,
+    specialHuaqiangCooldown: special?.huaqiangCooldown ?? 0,
+    specialHuaqiangNextKind: "melon",
+    specialBlackHandCooldown: special?.blackHandCooldown ?? 0,
+    specialBlackHandPhase: "idle",
+    specialBlackHandPhaseRemaining: 0,
+    specialBlackHandTargetId: null
   };
 }
 
