@@ -13,6 +13,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { BattleCanvas } from "../render/BattleCanvas";
+import { decodeBuildArchive, encodeBuildArchive } from "./build-code";
 import { getBrowserBuildStorage, readSavedBuildState, writeSavedBuildState, type SavedBuildState } from "./build-storage";
 import { createBuildConfig, createMatchConfig, defaultBlueTraits, defaultRedTraits, presetEnemies, type PresetEnemy } from "./match";
 
@@ -37,6 +38,8 @@ export function App() {
   );
   const [blueTraits, setBlueTraits] = useState<TraitId[]>(initialBuildState.blueTraits);
   const [redTraits, setRedTraits] = useState<TraitId[]>(initialBuildState.redTraits);
+  const [buildArchiveText, setBuildArchiveText] = useState("");
+  const [buildArchiveMessage, setBuildArchiveMessage] = useState("未生成构筑码");
   const [restartToken, setRestartToken] = useState(0);
   const [snapshot, setSnapshot] = useState<WorldSnapshot | null>(null);
 
@@ -89,6 +92,34 @@ export function App() {
     setSelectedPresetId(presetId);
   }, []);
 
+  const handleExportBuild = useCallback(
+    (team: Team) => {
+      const build = team === "blue" ? blueBuild : redBuild;
+      setBuildArchiveText(encodeBuildArchive(build));
+      setBuildArchiveMessage(`${team === "blue" ? "蓝方" : "红方"}构筑已导出`);
+    },
+    [blueBuild, redBuild]
+  );
+
+  const handleImportBuild = useCallback(
+    (team: Team) => {
+      const result = decodeBuildArchive(buildArchiveText);
+      if (!result.ok) {
+        setBuildArchiveMessage(result.message);
+        return;
+      }
+
+      if (team === "blue") {
+        setBlueTraits(result.build.traits);
+      } else {
+        setRedTraits(result.build.traits);
+        setBattleMode("free");
+      }
+      setBuildArchiveMessage(`${team === "blue" ? "蓝方" : "红方"}构筑已导入`);
+    },
+    [buildArchiveText]
+  );
+
   const blue = snapshot?.balls.find((ball) => ball.team === "blue" && ball.role === "main");
   const red = snapshot?.balls.find((ball) => ball.team === "red" && ball.role === "main");
   const result = snapshot?.result;
@@ -124,6 +155,15 @@ export function App() {
             stats={redStats}
             validation={redValidation}
             onTraitChange={handleRedTraitChange}
+          />
+
+          <BuildArchivePanel
+            message={buildArchiveMessage}
+            onExport={handleExportBuild}
+            onImport={handleImportBuild}
+            onTextChange={setBuildArchiveText}
+            redImportDisabled={battleMode === "challenge"}
+            text={buildArchiveText}
           />
 
           <button className="primary-button" disabled={!canBattle} onClick={() => setRestartToken((value) => value + 1)} type="button">
@@ -188,6 +228,46 @@ export function App() {
         <TraitLibrary />
       </section>
     </main>
+  );
+}
+
+type BuildArchivePanelProps = {
+  message: string;
+  redImportDisabled: boolean;
+  text: string;
+  onExport: (team: Team) => void;
+  onImport: (team: Team) => void;
+  onTextChange: (text: string) => void;
+};
+
+function BuildArchivePanel({ message, redImportDisabled, text, onExport, onImport, onTextChange }: BuildArchivePanelProps) {
+  return (
+    <section className="build-archive-panel">
+      <header className="section-header compact">
+        <h2>构筑存档</h2>
+        <span>{message}</span>
+      </header>
+      <textarea
+        aria-label="构筑码"
+        onChange={(event) => onTextChange(event.currentTarget.value)}
+        spellCheck={false}
+        value={text}
+      />
+      <div className="archive-actions">
+        <button onClick={() => onExport("blue")} type="button">
+          导出蓝方
+        </button>
+        <button onClick={() => onImport("blue")} type="button">
+          导入蓝方
+        </button>
+        <button onClick={() => onExport("red")} type="button">
+          导出红方
+        </button>
+        <button disabled={redImportDisabled} onClick={() => onImport("red")} type="button">
+          导入红方
+        </button>
+      </div>
+    </section>
   );
 }
 

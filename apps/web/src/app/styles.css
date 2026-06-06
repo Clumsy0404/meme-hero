@@ -18,7 +18,8 @@ body {
 }
 
 button,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -166,6 +167,60 @@ h1 {
   border: 1px solid #2a3035;
   border-radius: 8px;
   background: #111314;
+}
+
+.build-archive-panel {
+  display: grid;
+  gap: 10px;
+  padding: 14px 0 16px;
+  border-top: 1px solid #2a2f34;
+}
+
+.build-archive-panel textarea {
+  width: 100%;
+  min-height: 94px;
+  resize: vertical;
+  border: 1px solid #343b42;
+  border-radius: 6px;
+  padding: 9px 10px;
+  color: #f4f7fb;
+  background: #111314;
+  font-family: "Cascadia Mono", "Consolas", monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  outline: none;
+}
+
+.build-archive-panel textarea:focus {
+  border-color: #7dd3fc;
+}
+
+.archive-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.archive-actions button {
+  min-width: 0;
+  min-height: 34px;
+  border: 1px solid #343b42;
+  border-radius: 6px;
+  color: #dbe5ee;
+  background: #181a1b;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.archive-actions button:hover {
+  border-color: #7dd3fc;
+}
+
+.archive-actions button:disabled {
+  color: #6f7a84;
+  border-color: #2a3035;
+  cursor: not-allowed;
 }
 
 .field-label {
