@@ -22,6 +22,14 @@ export function getSnapshot(world: BattleWorldState): WorldSnapshot {
       radius: projectile.radius,
       position: { ...projectile.position }
     })),
+    turrets: world.turrets.map((turret) => ({
+      id: turret.id,
+      team: turret.team,
+      hp: turret.hp,
+      maxHp: turret.maxHp,
+      radius: turret.radius,
+      position: { ...turret.position }
+    })),
     events: world.events.map((event) => ({ ...event }))
   };
 

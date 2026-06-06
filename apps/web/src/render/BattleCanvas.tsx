@@ -103,6 +103,7 @@ function drawSnapshot(stage: Container, snapshot: WorldSnapshot): void {
   const graphics = new Graphics();
   drawArena(graphics, snapshot);
   drawEvents(graphics, snapshot.events);
+  drawTurrets(graphics, snapshot);
   drawProjectiles(graphics, snapshot);
   drawBalls(graphics, snapshot);
   stage.addChild(graphics);
@@ -153,14 +154,19 @@ function drawArena(graphics: Graphics, snapshot: WorldSnapshot): void {
 
 function drawBalls(graphics: Graphics, snapshot: WorldSnapshot): void {
   for (const ball of snapshot.balls) {
+    if (!ball.alive) {
+      continue;
+    }
     const x = ball.position.x * arenaScale;
     const y = ball.position.y * arenaScale;
     const radius = ball.radius * arenaScale;
     const hpRatio = Math.max(0, ball.hp / ball.maxHp);
     const color = ballColors[ball.team];
+    const fillAlpha = ball.role === "main" ? 1 : 0.66;
+    const roleRing = ball.role === "clone" ? 0xa7f3d0 : ball.role === "split" ? 0xfde68a : 0xffffff;
 
     graphics.circle(x + 5, y + 7, radius).fill({ color: 0x000000, alpha: 0.28 });
-    graphics.circle(x, y, radius).fill(color).stroke({ color: 0xffffff, width: 2, alpha: 0.28 });
+    graphics.circle(x, y, radius).fill({ color, alpha: fillAlpha }).stroke({ color: roleRing, width: 2, alpha: 0.36 });
     graphics.circle(x, y, radius + 5).stroke({
       color: hpRatio > 0.35 ? 0x6ee7b7 : 0xfbbf24,
       width: 4
@@ -172,6 +178,25 @@ function drawBalls(graphics: Graphics, snapshot: WorldSnapshot): void {
         alpha: 0.72
       });
     }
+  }
+}
+
+function drawTurrets(graphics: Graphics, snapshot: WorldSnapshot): void {
+  for (const turret of snapshot.turrets) {
+    const x = turret.position.x * arenaScale;
+    const y = turret.position.y * arenaScale;
+    const radius = turret.radius * arenaScale;
+    const color = ballColors[turret.team];
+    const hpRatio = Math.max(0, turret.hp / turret.maxHp);
+
+    graphics.roundRect(x - radius, y - radius, radius * 2, radius * 2, 4).fill({ color: 0x000000, alpha: 0.24 });
+    graphics
+      .roundRect(x - radius + 2, y - radius + 2, radius * 2 - 4, radius * 2 - 4, 4)
+      .fill({ color, alpha: 0.34 })
+      .stroke({ color, width: 2, alpha: 0.82 });
+    graphics.circle(x, y, Math.max(4, radius * 0.42)).fill(0xf8fafc).stroke({ color, width: 2, alpha: 0.9 });
+    graphics.rect(x - radius * 0.18, y - radius * 1.25, radius * 0.36, radius * 0.86).fill({ color: 0xf8fafc, alpha: 0.78 });
+    graphics.rect(x - radius, y + radius + 4, radius * 2 * hpRatio, 4).fill(hpRatio > 0.35 ? 0x6ee7b7 : 0xfbbf24);
   }
 }
 

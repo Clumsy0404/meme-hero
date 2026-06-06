@@ -1,7 +1,7 @@
 import { getRequiredTraitDefinition } from "@ball-brawl/content";
 import type { BuildConfig } from "@ball-brawl/shared";
 
-import type { BallMechanics, BallRuntimeState, CollisionMechanics, ProjectileMechanics } from "./types";
+import type { BallMechanics, BallRuntimeState, CollisionMechanics, ProjectileMechanics, SummonMechanics } from "./types";
 
 const emptyCollisionMechanics: CollisionMechanics = {
   lifestealRatio: 0,
@@ -30,9 +30,30 @@ const baseProjectileMechanics: ProjectileMechanics = {
   childRadiusMultiplier: 0.72
 };
 
+const emptySummonMechanics: SummonMechanics = {
+  maxClones: 0,
+  cloneCooldown: 0,
+  cloneHpRatio: 0.35,
+  splitCount: 0,
+  splitHpRatio: 0.5,
+  cloneDeathExplosionDamage: 0,
+  cloneDeathExplosionRadius: 0,
+  turretLimit: 0,
+  turretCooldown: 0,
+  turretLifetime: 0,
+  turretHp: 18,
+  turretRadius: 18,
+  turretProjectileDamage: 3,
+  turretProjectileCooldown: 1.8,
+  turretProjectileSpeed: 280,
+  turretProjectileRadius: 5,
+  turretProjectileLifetime: 3
+};
+
 export function createMechanicsForBuild(build: BuildConfig): BallMechanics {
   const collision = { ...emptyCollisionMechanics };
   const projectile = { ...baseProjectileMechanics };
+  const summon = { ...emptySummonMechanics };
   let fireRateMultiplier = 1;
 
   for (const traitId of build.traits) {
@@ -70,11 +91,28 @@ export function createMechanicsForBuild(build: BuildConfig): BallMechanics {
       );
       fireRateMultiplier *= projectileConfig.fireRateMultiplier ?? 1;
     }
+
+    const summonConfig = trait.numeric.summon;
+    if (summonConfig && trait.mainType === "summon") {
+      summon.maxClones = Math.max(summon.maxClones, summonConfig.maxClones ?? 0);
+      summon.cloneCooldown = Math.max(summon.cloneCooldown, summonConfig.cloneCooldown ?? 0);
+      summon.cloneHpRatio = Math.max(summon.cloneHpRatio, summonConfig.cloneHpRatio ?? summon.cloneHpRatio);
+      summon.splitCount = Math.max(summon.splitCount, summonConfig.splitCount ?? 0);
+      summon.splitHpRatio = Math.max(summon.splitHpRatio, summonConfig.splitHpRatio ?? summon.splitHpRatio);
+      summon.turretLimit = Math.max(summon.turretLimit, summonConfig.turretLimit ?? 0);
+      summon.turretCooldown = Math.max(summon.turretCooldown, summonConfig.turretCooldown ?? 0);
+      summon.turretLifetime = Math.max(summon.turretLifetime, summonConfig.turretLifetime ?? 0);
+    }
+
+    if (trait.behaviorKeys.includes("summon_death_explosion") && collisionConfig) {
+      summon.cloneDeathExplosionDamage = Math.max(summon.cloneDeathExplosionDamage, collisionConfig.explosionDamage ?? 0);
+      summon.cloneDeathExplosionRadius = Math.max(summon.cloneDeathExplosionRadius, collisionConfig.explosionRadius ?? 0);
+    }
   }
 
   projectile.cooldown = projectile.enabled ? projectile.cooldown / Math.max(0.25, fireRateMultiplier) : projectile.cooldown;
 
-  return { collision, projectile };
+  return { collision, projectile, summon };
 }
 
 export function createRuntimeState(): BallRuntimeState {
@@ -83,6 +121,11 @@ export function createRuntimeState(): BallRuntimeState {
     lifestealHealedInWindow: 0,
     collisionExplosionCooldown: 0,
     wallChargeStacks: 0,
-    projectileCooldown: 0
+    projectileCooldown: 0,
+    cloneCooldown: 0,
+    turretCooldown: 0,
+    deathSplitTriggered: false,
+    deathHandled: false,
+    deathDamageTags: []
   };
 }

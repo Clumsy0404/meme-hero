@@ -1,7 +1,8 @@
-import type { Team, Vec2 } from "@ball-brawl/shared";
+import type { BallStats, Team, Vec2 } from "@ball-brawl/shared";
 
 import { add, clamp, distance, length, lengthSq, lerp, normalize, scale, sub } from "../math/vector";
-import type { BallState, BattleResult, BattleWorldState, DamageTag, ProjectileState } from "./types";
+import { createRuntimeState } from "./build-mechanics";
+import type { BallMechanics, BallState, BattleResult, BattleWorldState, DamageTag, ProjectileState, TurretState } from "./types";
 
 export const FIXED_DT = 1 / 60;
 export const DEFAULT_CHASE_STRENGTH = 0.75;
@@ -22,9 +23,12 @@ export function stepBattle(
 
   updateCollisionTimers(world, dt);
   updateBalls(world, dt, chaseStrength);
+  updateSummons(world);
   fireProjectiles(world);
+  updateTurrets(world, dt);
   updateProjectiles(world, dt);
   resolveBallCollisions(world);
+  processDeaths(world);
   checkBattleEnd(world);
 
   return world;
@@ -59,6 +63,8 @@ function updateCollisionTimers(world: BattleWorldState, dt: number): void {
 
     ball.runtime.collisionExplosionCooldown = Math.max(0, ball.runtime.collisionExplosionCooldown - dt);
     ball.runtime.projectileCooldown = Math.max(0, ball.runtime.projectileCooldown - dt);
+    ball.runtime.cloneCooldown = Math.max(0, ball.runtime.cloneCooldown - dt);
+    ball.runtime.turretCooldown = Math.max(0, ball.runtime.turretCooldown - dt);
   }
 }
 
@@ -75,6 +81,34 @@ function updateBalls(world: BattleWorldState, dt: number, chaseStrength: number)
 
     ball.position = add(ball.position, scale(ball.velocity, dt));
     handleWallBounce(world, ball);
+  }
+}
+
+function updateSummons(world: BattleWorldState): void {
+  const activeMainBalls = world.balls.filter((ball) => ball.alive && ball.role === "main");
+
+  for (const ball of activeMainBalls) {
+    const mechanics = ball.mechanics.summon;
+    if (
+      mechanics.maxClones > 0 &&
+      mechanics.cloneCooldown > 0 &&
+      ball.runtime.cloneCooldown <= 0 &&
+      countOwnedBalls(world, ball, "clone") < mechanics.maxClones
+    ) {
+      spawnClone(world, ball);
+      ball.runtime.cloneCooldown = mechanics.cloneCooldown;
+    }
+
+    if (
+      mechanics.turretLimit > 0 &&
+      mechanics.turretCooldown > 0 &&
+      mechanics.turretLifetime > 0 &&
+      ball.runtime.turretCooldown <= 0 &&
+      countOwnedTurrets(world, ball) < mechanics.turretLimit
+    ) {
+      spawnTurret(world, ball);
+      ball.runtime.turretCooldown = mechanics.turretCooldown;
+    }
   }
 }
 
@@ -113,6 +147,35 @@ function fireProjectiles(world: BattleWorldState): void {
   }
 }
 
+function updateTurrets(world: BattleWorldState, dt: number): void {
+  const activeTurrets: TurretState[] = [];
+
+  for (const turret of world.turrets) {
+    if (!turret.alive) {
+      continue;
+    }
+
+    turret.lifetime -= dt;
+    turret.projectileCooldown = Math.max(0, turret.projectileCooldown - dt);
+    if (turret.lifetime <= 0 || turret.hp <= 0) {
+      continue;
+    }
+
+    const owner = world.balls.find((ball) => ball.id === turret.ownerId);
+    if (owner && turret.projectileCooldown <= 0) {
+      const target = findNearestEnemyCombatant(world, turret.team, turret.position);
+      if (target) {
+        spawnTurretProjectile(world, owner, turret, target);
+        turret.projectileCooldown = owner.mechanics.summon.turretProjectileCooldown;
+      }
+    }
+
+    activeTurrets.push(turret);
+  }
+
+  world.turrets = activeTurrets;
+}
+
 function spawnProjectile(world: BattleWorldState, owner: BallState, direction: Vec2, isChild: boolean, addToWorld = true): ProjectileState {
   const mechanics = owner.mechanics.projectile;
   const radius = isChild ? mechanics.radius * mechanics.childRadiusMultiplier : mechanics.radius;
@@ -138,6 +201,39 @@ function spawnProjectile(world: BattleWorldState, owner: BallState, direction: V
   if (addToWorld) {
     world.projectiles.push(projectile);
   }
+  return projectile;
+}
+
+function spawnTurretProjectile(world: BattleWorldState, owner: BallState, turret: TurretState, target: BallState): ProjectileState {
+  const mechanics = owner.mechanics.summon;
+  const direction = normalize(sub(target.position, turret.position), { x: owner.team === "blue" ? 1 : -1, y: 0 });
+  const projectile: ProjectileState = {
+    id: `projectile-${world.nextEntityId}`,
+    team: turret.team,
+    ownerId: owner.id,
+    position: add(turret.position, scale(direction, turret.radius + mechanics.turretProjectileRadius + 2)),
+    velocity: scale(direction, mechanics.turretProjectileSpeed),
+    radius: mechanics.turretProjectileRadius,
+    damage: mechanics.turretProjectileDamage,
+    lifetime: mechanics.turretProjectileLifetime,
+    bouncesLeft: 0,
+    piercesLeft: 0,
+    splitCount: 0,
+    childRadiusMultiplier: 1,
+    homingStrength: 0,
+    hitBallIds: [],
+    isChild: false
+  };
+  world.nextEntityId += 1;
+  world.projectiles.push(projectile);
+  world.events.push({
+    type: "trait_triggered",
+    tick: world.tick,
+    ballId: owner.id,
+    traitId: "auto_turret",
+    trigger: "turret_fire",
+    position: { ...turret.position }
+  });
   return projectile;
 }
 
@@ -457,6 +553,7 @@ function applyDamage(
   });
   if (target.hp <= 0) {
     target.alive = false;
+    target.runtime.deathDamageTags = tags;
   }
   return finalAmount;
 }
@@ -574,12 +671,229 @@ function gainWallCharge(world: BattleWorldState, ball: BallState): void {
   });
 }
 
+function spawnClone(world: BattleWorldState, owner: BallState): BallState {
+  const cloneStats = createChildStats(owner.stats, {
+    hpRatio: owner.mechanics.summon.cloneHpRatio,
+    radiusRatio: 0.72,
+    speedRatio: 1.05,
+    collisionDamageRatio: 0.45,
+    knockbackRatio: 0.8
+  });
+  const direction = world.rng.direction();
+  const clone = createChildBall(world, owner, "clone", cloneStats, direction);
+  world.balls.push(clone);
+  world.events.push({
+    type: "trait_triggered",
+    tick: world.tick,
+    ballId: owner.id,
+    traitId: "clone_spawn",
+    trigger: "clone_spawn",
+    position: { ...clone.position },
+    value: countOwnedBalls(world, owner, "clone")
+  });
+  return clone;
+}
+
+function spawnSplitBalls(world: BattleWorldState, owner: BallState): BallState[] {
+  const childCount = Math.max(0, owner.mechanics.summon.splitCount);
+  const children: BallState[] = [];
+  if (childCount <= 0) {
+    return children;
+  }
+
+  const splitStats = createChildStats(owner.stats, {
+    hpRatio: owner.mechanics.summon.splitHpRatio,
+    radiusRatio: 0.75,
+    speedRatio: 1.1,
+    collisionDamageRatio: 0.5,
+    knockbackRatio: 0.75
+  });
+  const baseAngle = Math.atan2(owner.velocity.y, owner.velocity.x);
+  const angleStep = (Math.PI * 2) / childCount;
+
+  for (let i = 0; i < childCount; i += 1) {
+    const direction = rotate({ x: Math.cos(baseAngle), y: Math.sin(baseAngle) }, angleStep * i);
+    const child = createChildBall(world, owner, "split", splitStats, direction);
+    children.push(child);
+  }
+
+  world.balls.push(...children);
+  world.events.push({
+    type: "trait_triggered",
+    tick: world.tick,
+    ballId: owner.id,
+    traitId: "death_split",
+    trigger: "death_split",
+    position: { ...owner.position },
+    value: children.length
+  });
+  return children;
+}
+
+function spawnTurret(world: BattleWorldState, owner: BallState): TurretState {
+  const mechanics = owner.mechanics.summon;
+  const direction = world.rng.direction();
+  const position = add(owner.position, scale(direction, owner.stats.radius + mechanics.turretRadius + 10));
+  const turret: TurretState = {
+    id: `turret-${world.nextEntityId}`,
+    team: owner.team,
+    ownerId: owner.id,
+    alive: true,
+    hp: mechanics.turretHp,
+    maxHp: mechanics.turretHp,
+    radius: mechanics.turretRadius,
+    lifetime: mechanics.turretLifetime,
+    projectileCooldown: 0,
+    position: clampPositionToArena(world, position, mechanics.turretRadius)
+  };
+  world.nextEntityId += 1;
+  world.turrets.push(turret);
+  world.events.push({
+    type: "trait_triggered",
+    tick: world.tick,
+    ballId: owner.id,
+    traitId: "auto_turret",
+    trigger: "turret_spawn",
+    position: { ...turret.position },
+    value: countOwnedTurrets(world, owner)
+  });
+  return turret;
+}
+
+function createChildBall(
+  world: BattleWorldState,
+  owner: BallState,
+  role: "clone" | "split",
+  stats: BallStats,
+  direction: Vec2
+): BallState {
+  const radius = stats.radius;
+  const position = clampPositionToArena(world, add(owner.position, scale(direction, owner.stats.radius + radius + 8)), radius);
+  const child: BallState = {
+    id: `ball-${world.nextEntityId}`,
+    team: owner.team,
+    role,
+    ownerId: owner.id,
+    alive: true,
+    hp: stats.maxHp,
+    stats,
+    mechanics: createChildMechanics(owner.mechanics),
+    runtime: createRuntimeState(),
+    position,
+    velocity: scale(direction, stats.moveSpeed),
+    collisionTimers: {}
+  };
+  world.nextEntityId += 1;
+  return child;
+}
+
+function createChildStats(
+  baseStats: BallStats,
+  ratios: {
+    hpRatio: number;
+    radiusRatio: number;
+    speedRatio: number;
+    collisionDamageRatio: number;
+    knockbackRatio: number;
+  }
+): BallStats {
+  return {
+    ...baseStats,
+    maxHp: Math.max(1, baseStats.maxHp * ratios.hpRatio),
+    radius: Math.max(10, baseStats.radius * ratios.radiusRatio),
+    moveSpeed: Math.max(20, baseStats.moveSpeed * ratios.speedRatio),
+    collisionDamage: Math.max(0, baseStats.collisionDamage * ratios.collisionDamageRatio),
+    knockback: Math.max(0, baseStats.knockback * ratios.knockbackRatio),
+    damageReduction: Math.min(0.35, baseStats.damageReduction)
+  };
+}
+
+function createChildMechanics(mechanics: BallMechanics): BallMechanics {
+  return {
+    collision: { ...mechanics.collision },
+    projectile: { ...mechanics.projectile, enabled: false },
+    summon: {
+      ...mechanics.summon,
+      maxClones: 0,
+      cloneCooldown: 0,
+      splitCount: 0,
+      turretLimit: 0,
+      turretCooldown: 0
+    }
+  };
+}
+
+function countOwnedBalls(world: BattleWorldState, owner: BallState, role: "clone" | "split"): number {
+  return world.balls.filter((ball) => ball.alive && ball.ownerId === owner.id && ball.role === role).length;
+}
+
+function countOwnedTurrets(world: BattleWorldState, owner: BallState): number {
+  return world.turrets.filter((turret) => turret.alive && turret.ownerId === owner.id).length;
+}
+
+function processDeaths(world: BattleWorldState): void {
+  let didHandleDeath = true;
+  while (didHandleDeath) {
+    didHandleDeath = false;
+    const deadBalls = world.balls.filter((ball) => !ball.alive && !ball.runtime.deathHandled);
+    for (const ball of deadBalls) {
+      didHandleDeath = true;
+      if (ball.role === "main" && canDeathSplit(ball)) {
+        ball.runtime.deathSplitTriggered = true;
+        ball.runtime.deathHandled = true;
+        spawnSplitBalls(world, ball);
+        continue;
+      }
+
+      if (ball.role !== "main" && !ball.runtime.deathDamageTags.includes("explosion")) {
+        triggerSummonDeathExplosion(world, ball);
+      }
+      ball.runtime.deathHandled = true;
+    }
+  }
+}
+
+function canDeathSplit(ball: BallState): boolean {
+  return ball.mechanics.summon.splitCount > 0 && !ball.runtime.deathSplitTriggered;
+}
+
+function triggerSummonDeathExplosion(world: BattleWorldState, source: BallState): void {
+  const { cloneDeathExplosionDamage, cloneDeathExplosionRadius } = source.mechanics.summon;
+  if (cloneDeathExplosionDamage <= 0 || cloneDeathExplosionRadius <= 0) {
+    return;
+  }
+
+  world.events.push({
+    type: "trait_triggered",
+    tick: world.tick,
+    ballId: source.id,
+    traitId: "clone_bomb",
+    trigger: "summon_death_explosion",
+    position: { ...source.position },
+    value: cloneDeathExplosionDamage
+  });
+
+  for (const target of world.balls) {
+    if (!target.alive || target.team === source.team || distance(target.position, source.position) > cloneDeathExplosionRadius) {
+      continue;
+    }
+    applyDamage(world, source, target, cloneDeathExplosionDamage, ["explosion"]);
+  }
+}
+
+function clampPositionToArena(world: BattleWorldState, position: Vec2, radius: number): Vec2 {
+  return {
+    x: clamp(position.x, radius, world.arena.width - radius),
+    y: clamp(position.y, radius, world.arena.height - radius)
+  };
+}
+
 function checkBattleEnd(world: BattleWorldState): void {
   if (world.result) {
     return;
   }
-  const blueAlive = hasMainAlive(world, "blue");
-  const redAlive = hasMainAlive(world, "red");
+  const blueAlive = hasScoringCombatantAlive(world, "blue");
+  const redAlive = hasScoringCombatantAlive(world, "red");
 
   if (blueAlive && redAlive) {
     return;
@@ -615,10 +929,14 @@ function setResult(world: BattleWorldState, result: BattleResult): void {
 }
 
 function findTarget(world: BattleWorldState, ball: BallState): BallState | undefined {
-  return world.balls.find((candidate) => candidate.alive && candidate.team !== ball.team && candidate.role === "main");
+  return findNearestEnemyCombatant(world, ball.team, ball.position);
 }
 
 function findNearestEnemy(world: BattleWorldState, team: Team, position: Vec2): BallState | undefined {
+  return findNearestEnemyCombatant(world, team, position);
+}
+
+function findNearestEnemyCombatant(world: BattleWorldState, team: Team, position: Vec2): BallState | undefined {
   let nearest: BallState | undefined;
   let nearestDistance = Number.POSITIVE_INFINITY;
   for (const candidate of world.balls) {
@@ -634,8 +952,8 @@ function findNearestEnemy(world: BattleWorldState, team: Team, position: Vec2): 
   return nearest;
 }
 
-function hasMainAlive(world: BattleWorldState, team: Team): boolean {
-  return world.balls.some((ball) => ball.team === team && ball.role === "main" && ball.alive);
+function hasScoringCombatantAlive(world: BattleWorldState, team: Team): boolean {
+  return world.balls.some((ball) => ball.team === team && ball.alive && (ball.role === "main" || ball.role === "split"));
 }
 
 function remainingHp(world: BattleWorldState, team: Team): number {

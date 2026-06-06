@@ -44,6 +44,7 @@ export function createBattle(match: MatchConfig, arena: ArenaState = DEFAULT_ARE
     arena,
     balls: [blue, red],
     projectiles: [],
+    turrets: [],
     events: [],
     nextEntityId: 1
   };

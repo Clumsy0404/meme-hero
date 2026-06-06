@@ -14,6 +14,7 @@ export type BallState = {
   id: string;
   team: Team;
   role: BallRole;
+  ownerId?: string;
   alive: boolean;
   hp: number;
   stats: BallStats;
@@ -27,6 +28,7 @@ export type BallState = {
 export type BallMechanics = {
   collision: CollisionMechanics;
   projectile: ProjectileMechanics;
+  summon: SummonMechanics;
 };
 
 export type CollisionMechanics = {
@@ -56,12 +58,37 @@ export type ProjectileMechanics = {
   childRadiusMultiplier: number;
 };
 
+export type SummonMechanics = {
+  maxClones: number;
+  cloneCooldown: number;
+  cloneHpRatio: number;
+  splitCount: number;
+  splitHpRatio: number;
+  cloneDeathExplosionDamage: number;
+  cloneDeathExplosionRadius: number;
+  turretLimit: number;
+  turretCooldown: number;
+  turretLifetime: number;
+  turretHp: number;
+  turretRadius: number;
+  turretProjectileDamage: number;
+  turretProjectileCooldown: number;
+  turretProjectileSpeed: number;
+  turretProjectileRadius: number;
+  turretProjectileLifetime: number;
+};
+
 export type BallRuntimeState = {
   lifestealWindowStart: number;
   lifestealHealedInWindow: number;
   collisionExplosionCooldown: number;
   wallChargeStacks: number;
   projectileCooldown: number;
+  cloneCooldown: number;
+  turretCooldown: number;
+  deathSplitTriggered: boolean;
+  deathHandled: boolean;
+  deathDamageTags: DamageTag[];
 };
 
 export type DamageTag = "collision" | "projectile" | "dot" | "explosion" | "reflect";
@@ -82,6 +109,19 @@ export type ProjectileState = {
   homingStrength: number;
   hitBallIds: string[];
   isChild: boolean;
+};
+
+export type TurretState = {
+  id: string;
+  team: Team;
+  ownerId: string;
+  alive: boolean;
+  hp: number;
+  maxHp: number;
+  radius: number;
+  lifetime: number;
+  projectileCooldown: number;
+  position: Vec2;
 };
 
 export type DamageEvent = {
@@ -154,6 +194,7 @@ export type BattleWorldState = {
   arena: ArenaState;
   balls: BallState[];
   projectiles: ProjectileState[];
+  turrets: TurretState[];
   events: BattleEvent[];
   nextEntityId: number;
   result?: BattleResult;
@@ -178,12 +219,22 @@ export type RenderProjectile = {
   position: Vec2;
 };
 
+export type RenderTurret = {
+  id: string;
+  team: Team;
+  hp: number;
+  maxHp: number;
+  radius: number;
+  position: Vec2;
+};
+
 export type WorldSnapshot = {
   tick: number;
   time: number;
   arena: ArenaState;
   balls: RenderBall[];
   projectiles: RenderProjectile[];
+  turrets: RenderTurret[];
   events: BattleEvent[];
   result?: BattleResult;
 };

@@ -363,6 +363,98 @@ describe("sim bootstrap", () => {
     expect(splitEvent.value).toBe(2);
   });
 
+  it("spawns clone balls without exceeding the configured clone limit", () => {
+    const world = createBattle(
+      makeMatch(["clone_spawn", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 240, height: 180 }
+    );
+    placeSeparatedMainBalls(world, 60, 180);
+
+    stepBattle(world, 1 / 60, 0);
+
+    const clones = world.balls.filter((ball) => ball.team === "blue" && ball.role === "clone" && ball.alive);
+    expect(clones).toHaveLength(1);
+    expect(clones[0]?.hp).toBeCloseTo(world.balls[0]!.stats.maxHp * 0.35);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.traitId === "clone_spawn")).toBe(true);
+
+    for (let i = 0; i < 30; i += 1) {
+      stepBattle(world, 1 / 60, 0);
+    }
+
+    expect(world.balls.filter((ball) => ball.team === "blue" && ball.role === "clone" && ball.alive)).toHaveLength(1);
+  });
+
+  it("splits a dead main ball before deciding the winner", () => {
+    const world = createBattle(
+      makeMatch(hpStackTraits, ["death_split", "hp_boost", "hp_boost", "hp_boost"]),
+      { id: "test", width: 240, height: 180 }
+    );
+    const red = world.balls[1];
+    if (!red) {
+      throw new Error("Expected a red ball");
+    }
+    red.hp = 0;
+    red.alive = false;
+
+    stepBattle(world, 1 / 60, 0);
+
+    const splitBalls = world.balls.filter((ball) => ball.team === "red" && ball.role === "split" && ball.alive);
+    expect(splitBalls).toHaveLength(2);
+    expect(world.result).toBeUndefined();
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.traitId === "death_split")).toBe(true);
+
+    for (const split of splitBalls) {
+      split.hp = 0;
+      split.alive = false;
+    }
+    stepBattle(world, 1 / 60, 0);
+
+    expect(world.result?.winner).toBe("blue");
+  });
+
+  it("explodes clone deaths when clone bomb is equipped", () => {
+    const world = createBattle(
+      makeMatch(["clone_spawn", "clone_bomb", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 240, height: 180 }
+    );
+    const [, red] = placeSeparatedMainBalls(world, 60, 150);
+
+    stepBattle(world, 1 / 60, 0);
+    const clone = world.balls.find((ball) => ball.team === "blue" && ball.role === "clone");
+    if (!clone) {
+      throw new Error("Expected a clone");
+    }
+    clone.position = { ...red.position };
+    clone.hp = 0;
+    clone.alive = false;
+    red.velocity = { x: 0, y: 0 };
+
+    stepBattle(world, 1 / 60, 0);
+
+    const explosionEvent = world.events.find((event) => event.type === "damage" && event.tags.includes("explosion"));
+    if (!explosionEvent || explosionEvent.type !== "damage") {
+      throw new Error("Expected clone death explosion damage");
+    }
+    expect(explosionEvent.amount).toBeCloseTo(10);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.traitId === "clone_bomb")).toBe(true);
+  });
+
+  it("spawns auto turrets that fire projectile shots", () => {
+    const world = createBattle(
+      makeMatch(["auto_turret", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 260, height: 180 }
+    );
+    placeSeparatedMainBalls(world, 60, 220);
+
+    stepBattle(world, 1 / 60, 0);
+
+    expect(world.turrets).toHaveLength(1);
+    expect(world.turrets[0]?.team).toBe("blue");
+    expect(world.projectiles.some((projectile) => projectile.ownerId === "blue-main")).toBe(true);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "turret_spawn")).toBe(true);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "turret_fire")).toBe(true);
+  });
+
   it("returns render snapshots without exposing the rng", () => {
     const world = createBattle(matchConfig);
     stepBattle(world);
@@ -371,6 +463,7 @@ describe("sim bootstrap", () => {
     expect(snapshot.tick).toBe(1);
     expect(snapshot.balls).toHaveLength(2);
     expect(snapshot.projectiles).toHaveLength(0);
+    expect(snapshot.turrets).toHaveLength(0);
     expect("rng" in snapshot).toBe(false);
   });
 
@@ -387,6 +480,23 @@ describe("sim bootstrap", () => {
     expect(snapshot.projectiles).toHaveLength(1);
     expect(snapshot.projectiles[0]).toMatchObject({
       id: world.projectiles[0]?.id,
+      team: "blue"
+    });
+  });
+
+  it("includes turrets in render snapshots", () => {
+    const world = createBattle(
+      makeMatch(["auto_turret", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 260, height: 180 }
+    );
+    placeSeparatedMainBalls(world, 60, 220);
+
+    stepBattle(world, 1 / 60, 0);
+    const snapshot = getSnapshot(world);
+
+    expect(snapshot.turrets).toHaveLength(1);
+    expect(snapshot.turrets[0]).toMatchObject({
+      id: world.turrets[0]?.id,
       team: "blue"
     });
   });
