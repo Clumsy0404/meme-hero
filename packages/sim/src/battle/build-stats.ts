@@ -32,7 +32,15 @@ export function createStatsForBuild(build: BuildConfig, baseStats: BallStats = b
     }
   }
 
-  return clampStats(applyModifierBuckets(baseStats, buckets));
+  const stats = clampStats(applyModifierBuckets(baseStats, buckets));
+  if (hasProjectileTrait(build)) {
+    stats.collisionDamage = 0;
+  }
+  return stats;
+}
+
+function hasProjectileTrait(build: BuildConfig): boolean {
+  return build.traits.some((traitId) => getRequiredTraitDefinition(traitId).mainType === "projectile");
 }
 
 function createModifierBuckets(): Record<StatKey, ModifierBucket> {

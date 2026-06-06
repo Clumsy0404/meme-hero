@@ -102,6 +102,30 @@ describe("sim bootstrap", () => {
     expect(stats.moveSpeed).toBe(180);
   });
 
+  it("removes body collision damage from projectile builds", () => {
+    const stats = createStatsForBuild({
+      version: "0.1",
+      name: "Ranged Body",
+      skin: "default_blue",
+      baseModel: "default",
+      traits: ["ranged_core", "collision_boost", "hp_boost"]
+    });
+
+    expect(stats.collisionDamage).toBe(0);
+  });
+
+  it("keeps body collision damage for non-projectile builds", () => {
+    const stats = createStatsForBuild({
+      version: "0.1",
+      name: "Melee Body",
+      skin: "default_blue",
+      baseModel: "default",
+      traits: ["collision_boost", "hp_boost", "speed_boost"]
+    });
+
+    expect(stats.collisionDamage).toBeCloseTo(8 * 1.18);
+  });
+
   it("rejects invalid builds before simulation starts", () => {
     expect(() =>
       createStatsForBuild({
