@@ -306,8 +306,8 @@ export const traitDefinitions: TraitDefinition[] = [
     mainType: "summon",
     tags: ["summon", "clone"],
     repeatRule: { kind: "unique" },
-    description: "周期性生成 1 个低生命分身协助撞击。",
-    numeric: { summon: { maxClones: 1, cloneCooldown: 7, cloneHpRatio: 0.35 } },
+    description: "生成 1 个 1 点生命的继承分身；分身死亡后 10 秒刷新，分身造成的伤害降低 30%。",
+    numeric: { summon: { maxClones: 1, cloneCooldown: 10 } },
     behaviorKeys: ["summon_clone"]
   },
   {

@@ -672,15 +672,17 @@ describe("sim bootstrap", () => {
   it("spawns clone balls without exceeding the configured clone limit", () => {
     const world = createBattle(
       makeMatch(["clone_spawn", "hp_boost", "hp_boost"], hpStackTraits),
-      { id: "test", width: 240, height: 180 }
+      { id: "test", width: 720, height: 240 }
     );
-    placeSeparatedMainBalls(world, 60, 180);
+    placeSeparatedMainBalls(world, 100, 620, 120);
 
     stepBattle(world, 1 / 60, 0);
 
     const clones = world.balls.filter((ball) => ball.team === "blue" && ball.role === "clone" && ball.alive);
     expect(clones).toHaveLength(1);
-    expect(clones[0]?.hp).toBeCloseTo(world.balls[0]!.stats.maxHp * 0.35);
+    expect(clones[0]?.hp).toBe(1);
+    expect(clones[0]?.stats.maxHp).toBe(1);
+    expect(clones[0]?.stats.collisionDamage).toBeCloseTo(world.balls[0]!.stats.collisionDamage * 0.7);
     expect(world.events.some((event) => event.type === "trait_triggered" && event.traitId === "clone_spawn")).toBe(true);
 
     for (let i = 0; i < 30; i += 1) {
@@ -688,6 +690,76 @@ describe("sim bootstrap", () => {
     }
 
     expect(world.balls.filter((ball) => ball.team === "blue" && ball.role === "clone" && ball.alive)).toHaveLength(1);
+  });
+
+  it("respawns clone balls ten seconds after clone death", () => {
+    const world = createBattle(
+      makeMatch(["clone_spawn", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 720, height: 240 }
+    );
+    const [blue, red] = placeSeparatedMainBalls(world, 100, 620, 120);
+    blue.stats.moveSpeed = 0;
+    red.stats.moveSpeed = 0;
+    red.stats.collisionDamage = 0;
+
+    stepBattle(world, 1 / 60, 0);
+    const clone = world.balls.find((ball) => ball.team === "blue" && ball.role === "clone" && ball.alive);
+    if (!clone) {
+      throw new Error("Expected a clone");
+    }
+    clone.hp = 0;
+    clone.alive = false;
+
+    stepBattle(world, 1 / 60, 0);
+    expect(world.balls.filter((ball) => ball.team === "blue" && ball.role === "clone" && ball.alive)).toHaveLength(0);
+    expect(world.balls[0]?.runtime.cloneCooldown).toBeCloseTo(10);
+
+    stepBattle(world, 9.9, 0);
+    expect(world.balls.filter((ball) => ball.team === "blue" && ball.role === "clone" && ball.alive)).toHaveLength(0);
+
+    stepBattle(world, 0.2, 0);
+    expect(world.balls.filter((ball) => ball.team === "blue" && ball.role === "clone" && ball.alive)).toHaveLength(1);
+  });
+
+  it("lets clone balls inherit projectile abilities with reduced damage", () => {
+    const world = createBattle(
+      makeMatch(["clone_spawn", "ranged_core", "hp_boost"], hpStackTraits),
+      { id: "test", width: 480, height: 240 }
+    );
+    placeSeparatedMainBalls(world, 100, 380, 120);
+
+    stepBattle(world, 1 / 60, 0);
+
+    const clone = world.balls.find((ball) => ball.team === "blue" && ball.role === "clone");
+    if (!clone) {
+      throw new Error("Expected a clone");
+    }
+    const cloneProjectile = world.projectiles.find((projectile) => projectile.ownerId === clone.id);
+
+    expect(clone.mechanics.projectile.enabled).toBe(true);
+    expect(clone.mechanics.summon.maxClones).toBe(0);
+    expect(cloneProjectile?.damage).toBeCloseTo(2.6 * 0.7);
+  });
+
+  it("lets clone balls inherit special projectile abilities with reduced damage", () => {
+    const world = createBattle(
+      makeMatch(["clone_spawn", "special_bounce_basketball", "hp_boost"], hpStackTraits),
+      { id: "test", width: 720, height: 240 }
+    );
+    placeSeparatedMainBalls(world, 100, 620, 120);
+
+    stepBattle(world, 1 / 60, 0);
+    const clone = world.balls.find((ball) => ball.team === "blue" && ball.role === "clone");
+    if (!clone) {
+      throw new Error("Expected a clone");
+    }
+    clone.runtime.specialBasketballCooldown = 0;
+
+    stepBattle(world, 1 / 60, 0);
+
+    const basketball = world.projectiles.find((projectile) => projectile.ownerId === clone.id && projectile.kind === "basketball");
+    expect(clone.mechanics.special.basketballDamage).toBeCloseTo(5 * 0.7);
+    expect(basketball?.damage).toBeCloseTo(5 * 0.7);
   });
 
   it("splits a dead main ball before deciding the winner", () => {
@@ -741,7 +813,7 @@ describe("sim bootstrap", () => {
     if (!explosionEvent || explosionEvent.type !== "damage") {
       throw new Error("Expected clone death explosion damage");
     }
-    expect(explosionEvent.amount).toBeCloseTo(10);
+    expect(explosionEvent.amount).toBeCloseTo(10 * 0.7);
     expect(world.events.some((event) => event.type === "trait_triggered" && event.traitId === "clone_bomb")).toBe(true);
   });
 

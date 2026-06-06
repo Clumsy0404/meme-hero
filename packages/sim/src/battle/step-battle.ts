@@ -17,6 +17,7 @@ import type {
 export const FIXED_DT = 1 / 60;
 export const DEFAULT_CHASE_STRENGTH = 0.75;
 export const DEFAULT_MAX_DURATION = 180;
+const CLONE_DAMAGE_MULTIPLIER = 0.7;
 
 export function stepBattle(
   world: BattleWorldState,
@@ -120,7 +121,7 @@ function updateSummons(world: BattleWorldState): void {
       countOwnedBalls(world, ball, "clone") < mechanics.maxClones
     ) {
       spawnClone(world, ball);
-      ball.runtime.cloneCooldown = mechanics.cloneCooldown;
+      ball.runtime.cloneCooldown = 0;
     }
 
     if (
@@ -799,7 +800,7 @@ function getSpecialCollisionAttack(
   damage: number
 ): { damage: number; knockbackMultiplier: number } {
   const { elbowCooldown, elbowDamageMultiplier, elbowKnockbackMultiplier } = source.mechanics.special;
-  if (source.role !== "main" || damage <= 0) {
+  if (!canUseActiveAbilities(source) || damage <= 0) {
     return { damage, knockbackMultiplier: 1 };
   }
 
@@ -867,7 +868,7 @@ function applyHajimiGuard(
   incomingDamage: number
 ): { damage: number; selfKnockbackMultiplier: number; attackerKnockbackMultiplier: number } {
   const { hajimiCollisionReduction, hajimiSelfKnockbackMultiplier, hajimiAttackerKnockbackMultiplier } = target.mechanics.special;
-  if (target.role !== "main" || incomingDamage <= 0 || hajimiCollisionReduction <= 0 || target.runtime.specialHajimiGuardRemaining <= 0) {
+  if (!canUseActiveAbilities(target) || incomingDamage <= 0 || hajimiCollisionReduction <= 0 || target.runtime.specialHajimiGuardRemaining <= 0) {
     return { damage: incomingDamage, selfKnockbackMultiplier: 1, attackerKnockbackMultiplier: 1 };
   }
 
@@ -1113,7 +1114,7 @@ function getEffectiveMoveSpeed(ball: BallState): number {
 function isBladeShieldBladeActive(ball: BallState): boolean {
   return (
     ball.alive &&
-    ball.role === "main" &&
+    canUseActiveAbilities(ball) &&
     ball.runtime.specialBladeShieldStance === "blade" &&
     ball.mechanics.special.bladeShieldBladeDuration > 0 &&
     ball.mechanics.special.bladeShieldBladeDamageMultiplier > 1
@@ -1123,7 +1124,7 @@ function isBladeShieldBladeActive(ball: BallState): boolean {
 function isBladeShieldShieldActive(ball: BallState): boolean {
   return (
     ball.alive &&
-    ball.role === "main" &&
+    canUseActiveAbilities(ball) &&
     ball.runtime.specialBladeShieldStance === "shield" &&
     ball.mechanics.special.bladeShieldShieldDuration > 0
   );
@@ -1132,7 +1133,7 @@ function isBladeShieldShieldActive(ball: BallState): boolean {
 function isSpecialElbowActive(ball: BallState): boolean {
   return (
     ball.alive &&
-    ball.role === "main" &&
+    canUseActiveAbilities(ball) &&
     ball.runtime.specialElbowWindowRemaining > 0 &&
     ball.mechanics.special.elbowCooldown > 0 &&
     ball.mechanics.special.elbowWindow > 0 &&
@@ -1142,6 +1143,10 @@ function isSpecialElbowActive(ball: BallState): boolean {
 
 function canSpecialElbowHit(ball: BallState): boolean {
   return isSpecialElbowActive(ball) && ball.runtime.specialElbowHitAvailable;
+}
+
+function canUseActiveAbilities(ball: BallState): boolean {
+  return ball.role === "main" || ball.role === "clone";
 }
 
 function refreshSpecialElbowDirection(world: BattleWorldState, ball: BallState): void {
@@ -1210,7 +1215,7 @@ function updateRules(world: BattleWorldState, dt: number): void {
 
 function updateSpecials(world: BattleWorldState, dt: number): void {
   for (const ball of world.balls) {
-    if (!ball.alive || ball.role !== "main") {
+    if (!ball.alive || !canUseActiveAbilities(ball)) {
       continue;
     }
 
@@ -1526,7 +1531,7 @@ function fireSpecialBasketballs(world: BattleWorldState): void {
     const mechanics = ball.mechanics.special;
     if (
       !ball.alive ||
-      ball.role !== "main" ||
+      !canUseActiveAbilities(ball) ||
       mechanics.basketballCooldown <= 0 ||
       mechanics.basketballDamage <= 0 ||
       mechanics.basketballLimit <= 0 ||
@@ -1561,7 +1566,7 @@ function fireSpecialHuaqiang(world: BattleWorldState): void {
     const mechanics = ball.mechanics.special;
     if (
       !ball.alive ||
-      ball.role !== "main" ||
+      !canUseActiveAbilities(ball) ||
       mechanics.huaqiangCooldown <= 0 ||
       ball.runtime.specialHuaqiangCooldown > 0 ||
       !canFireHuaqiang(ball)
@@ -1782,13 +1787,11 @@ function gainWallCharge(world: BattleWorldState, ball: BallState): void {
 }
 
 function spawnClone(world: BattleWorldState, owner: BallState): BallState {
-  const cloneStats = createChildStats(owner.stats, {
-    hpRatio: owner.mechanics.summon.cloneHpRatio,
-    radiusRatio: 0.72,
-    speedRatio: 1.05,
-    collisionDamageRatio: 0.45,
-    knockbackRatio: 0.8
-  });
+  const cloneStats: BallStats = {
+    ...owner.stats,
+    maxHp: 1,
+    collisionDamage: owner.stats.collisionDamage * CLONE_DAMAGE_MULTIPLIER
+  };
   const direction = world.rng.direction();
   const clone = createChildBall(world, owner, "clone", cloneStats, direction);
   world.balls.push(clone);
@@ -1879,6 +1882,7 @@ function createChildBall(
 ): BallState {
   const radius = stats.radius;
   const position = clampPositionToArena(world, add(owner.position, scale(direction, owner.stats.radius + radius + 8)), radius);
+  const mechanics = createChildMechanics(owner.mechanics, role);
   const child: BallState = {
     id: `ball-${world.nextEntityId}`,
     team: owner.team,
@@ -1887,8 +1891,8 @@ function createChildBall(
     alive: true,
     hp: stats.maxHp,
     stats,
-    mechanics: createChildMechanics(owner.mechanics, role),
-    runtime: createRuntimeState(),
+    mechanics,
+    runtime: createRuntimeState(mechanics),
     position,
     velocity: scale(direction, stats.moveSpeed),
     collisionTimers: {}
@@ -1919,6 +1923,10 @@ function createChildStats(
 }
 
 function createChildMechanics(mechanics: BallMechanics, role: "clone" | "split"): BallMechanics {
+  if (role === "clone") {
+    return createCloneMechanics(mechanics);
+  }
+
   const keepsScoringRules = role === "split";
   return {
     collision: { ...mechanics.collision },
@@ -1963,6 +1971,54 @@ function createChildMechanics(mechanics: BallMechanics, role: "clone" | "split")
   };
 }
 
+function createCloneMechanics(mechanics: BallMechanics): BallMechanics {
+  return {
+    collision: {
+      ...mechanics.collision,
+      reflectRatio: mechanics.collision.reflectRatio * CLONE_DAMAGE_MULTIPLIER,
+      explosionDamage: mechanics.collision.explosionDamage * CLONE_DAMAGE_MULTIPLIER
+    },
+    projectile: {
+      ...mechanics.projectile,
+      damage: mechanics.projectile.damage * CLONE_DAMAGE_MULTIPLIER
+    },
+    summon: {
+      ...mechanics.summon,
+      maxClones: 0,
+      cloneCooldown: 0,
+      splitCount: 0,
+      turretLimit: 0,
+      turretCooldown: 0,
+      cloneDeathExplosionDamage: mechanics.summon.cloneDeathExplosionDamage * CLONE_DAMAGE_MULTIPLIER,
+      turretProjectileDamage: mechanics.summon.turretProjectileDamage * CLONE_DAMAGE_MULTIPLIER
+    },
+    status: {
+      ...mechanics.status,
+      onHit: mechanics.status.onHit.map(scaleStatusDamage),
+      shieldValue: mechanics.status.shieldValue,
+      shieldCooldown: mechanics.status.shieldCooldown
+    },
+    rule: {
+      ...mechanics.rule,
+      reviveHpRatio: 0
+    },
+    special: {
+      ...mechanics.special,
+      basketballDamage: mechanics.special.basketballDamage * CLONE_DAMAGE_MULTIPLIER,
+      huaqiangMelonDamage: mechanics.special.huaqiangMelonDamage * CLONE_DAMAGE_MULTIPLIER,
+      huaqiangMelonSplashDamage: mechanics.special.huaqiangMelonSplashDamage * CLONE_DAMAGE_MULTIPLIER,
+      huaqiangKnifeDamage: mechanics.special.huaqiangKnifeDamage * CLONE_DAMAGE_MULTIPLIER
+    }
+  };
+}
+
+function scaleStatusDamage(status: StatusApplicationMechanics): StatusApplicationMechanics {
+  return {
+    ...status,
+    tickDamage: status.tickDamage * CLONE_DAMAGE_MULTIPLIER
+  };
+}
+
 function countOwnedBalls(world: BattleWorldState, owner: BallState, role: "clone" | "split"): number {
   return world.balls.filter((ball) => ball.alive && ball.ownerId === owner.id && ball.role === role).length;
 }
@@ -1982,6 +2038,7 @@ function processDeaths(world: BattleWorldState): void {
     const deadBalls = world.balls.filter((ball) => !ball.alive && !ball.runtime.deathHandled);
     for (const ball of deadBalls) {
       didHandleDeath = true;
+      startCloneRespawnCooldown(world, ball);
       if (canRevive(ball)) {
         reviveBall(world, ball);
         continue;
@@ -2001,6 +2058,18 @@ function processDeaths(world: BattleWorldState): void {
       ball.runtime.deathHandled = true;
     }
   }
+}
+
+function startCloneRespawnCooldown(world: BattleWorldState, deadBall: BallState): void {
+  if (deadBall.role !== "clone" || !deadBall.ownerId) {
+    return;
+  }
+  const owner = world.balls.find((ball) => ball.id === deadBall.ownerId);
+  const cooldown = owner?.mechanics.summon.cloneCooldown ?? 0;
+  if (!owner?.alive || cooldown <= 0) {
+    return;
+  }
+  owner.runtime.cloneCooldown = Math.max(owner.runtime.cloneCooldown, cooldown);
 }
 
 function canDeathSplit(ball: BallState): boolean {
