@@ -101,26 +101,130 @@ type StartScreenProps = {
 };
 
 function StartScreen({ onOpenDeveloper, onStart }: StartScreenProps) {
+  const fieldRef = useRef<HTMLDivElement | null>(null);
+  const nodeRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const bubbles = useRef<Array<{ x: number; y: number; vx: number; vy: number; rot: number; rv: number; s: number }>>([]);
+
+  useEffect(() => {
+    const field = fieldRef.current;
+    if (!field) {
+      return;
+    }
+
+    const size = (index: number) => 9 * (MEME_PX[index % MEME_PX.length] ?? 6);
+    let width = field.clientWidth;
+    let height = field.clientHeight;
+
+    bubbles.current = startMemes.map((_, index) => {
+      const side = size(index);
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 14 + Math.random() * 16;
+      return {
+        x: Math.random() * Math.max(1, width - side),
+        y: Math.random() * Math.max(1, height - side),
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        rot: Math.random() * 16 - 8,
+        rv: (Math.random() * 2 - 1) * 0.4,
+        s: side
+      };
+    });
+
+    const applyPositions = () => {
+      bubbles.current.forEach((bubble, index) => {
+        const node = nodeRefs.current[index];
+        if (node) {
+          node.style.transform = `translate(${bubble.x}px, ${bubble.y}px) rotate(${bubble.rot}deg)`;
+        }
+      });
+    };
+
+    applyPositions();
+
+    let animationFrame = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      width = field.clientWidth;
+      height = field.clientHeight;
+
+      bubbles.current.forEach((bubble) => {
+        bubble.x += bubble.vx * dt;
+        bubble.y += bubble.vy * dt;
+
+        if (bubble.x <= 0) {
+          bubble.x = 0;
+          bubble.vx = Math.abs(bubble.vx);
+        }
+        if (bubble.x >= width - bubble.s) {
+          bubble.x = width - bubble.s;
+          bubble.vx = -Math.abs(bubble.vx);
+        }
+        if (bubble.y <= 0) {
+          bubble.y = 0;
+          bubble.vy = Math.abs(bubble.vy);
+        }
+        if (bubble.y >= height - bubble.s) {
+          bubble.y = height - bubble.s;
+          bubble.vy = -Math.abs(bubble.vy);
+        }
+
+        bubble.rot += bubble.rv;
+        if (bubble.rot > 10 || bubble.rot < -10) {
+          bubble.rv *= -1;
+        }
+      });
+
+      applyPositions();
+      animationFrame = window.requestAnimationFrame(tick);
+    };
+
+    animationFrame = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, []);
+
   return (
-    <section className="mobile-screen mobile-start">
-      <div className="meme-cloud" aria-hidden="true">
-        <PixelFace className="face-a" tone="#ffd23f" />
-        <PixelFace className="face-b" tone="#22d3ff" />
-        <PixelFace className="face-c" tone="#ff5db1" />
+    <section className="mobile-screen vst">
+      <div className="vst-memes" ref={fieldRef}>
+        {startMemes.map((meme, index) => {
+          const px = MEME_PX[index % MEME_PX.length] ?? 6;
+          return (
+            <div
+              className="vst-meme"
+              key={meme.id}
+              ref={(element) => {
+                nodeRefs.current[index] = element;
+              }}
+            >
+              <PixelArt palette={meme.palette} rows={meme.rows} px={px} />
+            </div>
+          );
+        })}
       </div>
-      <header className="mobile-title-block">
-        <p>MEME HERO</p>
-        <h1>小球乱斗</h1>
-        <span>词条构筑 · 自动对战</span>
-      </header>
-      <div className="start-actions">
-        <button className="pixel-button primary" onClick={onStart} type="button">
-          开始游戏
+      <div className="vst-main">
+        <div className="vst-kicker">小球肉鸽自动对战</div>
+        <h1 className="vst-title">
+          <span className="l1">MEME</span>
+          <span className="l2">HERO</span>
+        </h1>
+        <p className="vst-sub">
+          组合词条 · 打造你的小球英雄
+          <br />
+          挑战梗王，登顶榜单
+        </p>
+      </div>
+      <div className="vst-spacer" />
+      <div className="vst-foot">
+        <button className="vst-start" onClick={onStart} type="button">
+          ▶ 开始游戏
         </button>
-        <button className="pixel-button ghost" onClick={onOpenDeveloper} type="button">
+        <div className="vst-press">PRESS START</div>
+        <button className="vst-dev" onClick={onOpenDeveloper} type="button">
           开发者入口
         </button>
       </div>
+      <div className="vst-ver">v0.1</div>
     </section>
   );
 }
@@ -167,98 +271,98 @@ function TraitSelectScreen({ selectedTraits, onConfirm, onTraitsChange }: TraitS
   );
 
   return (
-    <section className="mobile-screen trait-screen">
-      <header className="mobile-panel top-panel">
-        <div>
-          <p className="pixel-en">SELECT TRAITS</p>
-          <h2>选择词条</h2>
+    <section className="mobile-screen va">
+      <div className="va-top">
+        <div className="va-titlerow">
+          <div>
+            <div className="va-title">SELECT TRAITS</div>
+            <div className="va-zh">选择词条</div>
+          </div>
+          <div className="va-progress">
+            <ProgressDots count={selectedTraits.length} total={mobileGameData.pickCount} />
+            <div className="va-count">
+              {selectedTraits.length} / {mobileGameData.pickCount}
+            </div>
+          </div>
         </div>
-        <ProgressDots count={selectedTraits.length} total={mobileGameData.pickCount} />
-      </header>
 
-      <nav className="trait-tabs" aria-label="词条分类">
-        {mobileGameData.cats.map((category) => {
-          const selectedInCategory = selectedTraits.filter((trait) => trait.cat === category.id).length;
-          return (
-            <button
-              aria-pressed={categoryId === category.id}
-              className={`trait-tab ${categoryId === category.id ? "active" : ""}`}
-              key={category.id}
-              onClick={() => setCategoryId(category.id)}
-              style={{ "--cat": category.color } as React.CSSProperties}
-              type="button"
-            >
-              {selectedInCategory > 0 ? <span>{selectedInCategory}</span> : null}
-              <PixelSprite color={category.color} rows={category.icon} size={2} />
-              <em>{category.name}</em>
-            </button>
-          );
-        })}
-      </nav>
+        <nav className="va-tabs" aria-label="词条分类">
+          {mobileGameData.cats.map((category) => {
+            const selectedInCategory = selectedTraits.filter((trait) => trait.cat === category.id).length;
+            const active = categoryId === category.id;
+            return (
+              <button
+                aria-pressed={active}
+                className={`va-tab ${active ? "on" : ""}`}
+                key={category.id}
+                onClick={() => setCategoryId(category.id)}
+                style={{ "--tc": category.color } as React.CSSProperties}
+                type="button"
+              >
+                {selectedInCategory > 0 ? <span className="tabpip">{selectedInCategory}</span> : null}
+                <PixelSprite color={active ? "#0b0f1f" : category.color} rows={category.icon} px={2} />
+                {category.name}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
 
-      <div className="trait-list">
+      <div className="va-pool">
         {traits.map((trait) => {
           const category = getMobileCategory(trait.cat);
           const disabled = !canAdd(trait);
           const selectedCount = countOf(trait.id);
+          const cost = trait.cost === "tradeoff" ? { cls: "cost-trade", text: "有代价" } : { cls: "cost-pure", text: "纯正面" };
           return (
             <button
-              className={`trait-card ${disabled ? "disabled" : ""}`}
+              className={`va-card ${disabled ? "dis" : ""}`}
               disabled={disabled}
               key={trait.id}
               onClick={() => addTrait(trait)}
-              style={{ "--cat": category.color } as React.CSSProperties}
+              style={{ "--c": category.color } as React.CSSProperties}
               type="button"
             >
-              <span className="trait-card-bar" />
-              {selectedCount > 0 ? <strong className="trait-count">{trait.repeat ? `x${selectedCount}` : "✓"}</strong> : null}
-              <span className="trait-card-head">
-                <PixelSprite color={category.color} rows={category.icon} size={2} />
-                <b>{trait.name}</b>
-              </span>
-              <small>{trait.sub}</small>
-              <span className="trait-card-tags">
-                <i>{trait.cost === "tradeoff" ? "有代价" : "纯正面"}</i>
-                <i>{trait.repeat ? "可重复" : "唯一"}</i>
-              </span>
+              <span className="va-catbar" />
+              {selectedCount > 0 ? <span className="va-badge">{trait.repeat ? `×${selectedCount}` : "✓"}</span> : null}
+              <div className="va-card-top">
+                <PixelSprite color={category.color} rows={category.icon} px={2} />
+                <span className="va-card-name">{trait.name}</span>
+              </div>
+              <div className="va-card-sub">{trait.sub}</div>
+              <div className="va-card-foot">
+                <span className={`va-chip ${cost.cls}`} style={{ "--c": category.color } as React.CSSProperties}>
+                  {cost.text}
+                </span>
+                <span className="va-chip">{trait.repeat ? "REPEAT" : "UNIQUE"}</span>
+              </div>
             </button>
           );
         })}
       </div>
 
-      <footer className="build-dock">
-        <div className="build-dock-head">
-          <span>我的构筑</span>
-          <b>
-            {selectedTraits.length}/{mobileGameData.pickCount}
-          </b>
+      <div className="va-build">
+        <div className="va-build-head">
+          <div className="va-build-label">我的构筑</div>
+          <div className="va-count">MY BUILD</div>
         </div>
-        <div className="build-slots">
+        <div className="va-slots">
           {Array.from({ length: mobileGameData.pickCount }).map((_, index) => {
             const trait = selectedTraits[index];
             const category = trait ? getMobileCategory(trait.cat) : null;
             return trait && category ? (
-              <button
-                className="build-slot filled"
-                key={index}
-                onClick={() => removeTrait(index)}
-                style={{ "--cat": category.color } as React.CSSProperties}
-                type="button"
-              >
-                <span />
-                {trait.name}
-              </button>
-            ) : (
-              <div className="build-slot" key={index}>
-                {index + 1}
+              <div className="va-slot" key={index} style={{ "--c": category.color } as React.CSSProperties}>
+                <TraitMini trait={trait} onRemove={() => removeTrait(index)} />
               </div>
+            ) : (
+              <div className="va-slot empty" data-i={index + 1} key={index} />
             );
           })}
         </div>
-        <button className={`pixel-button primary ${full ? "pulse" : ""}`} disabled={!full} onClick={onConfirm} type="button">
-          {full ? "进入挑战者选择" : `还需选择 ${mobileGameData.pickCount - selectedTraits.length} 个词条`}
+        <button className={`va-cta ${full ? "go" : ""}`} disabled={!full} onClick={onConfirm} type="button">
+          {full ? "进入挑战者选择 ▶" : `还需选择 ${mobileGameData.pickCount - selectedTraits.length} 个词条`}
         </button>
-      </footer>
+      </div>
     </section>
   );
 }
@@ -273,90 +377,110 @@ type ChallengerScreenProps = {
 
 function ChallengerScreen({ opponent, selectedTraits, onBack, onChallenge, onOpponentChange }: ChallengerScreenProps) {
   return (
-    <section className="mobile-screen challenger-screen">
-      <header className="mobile-panel top-panel challenger-top">
-        <button className="pixel-icon-button" onClick={onBack} type="button">
-          ‹
-        </button>
-        <div>
-          <p className="pixel-en">SELECT CHALLENGER</p>
-          <h2>选择挑战者</h2>
+    <section className="mobile-screen vch">
+      <div className="vch-top">
+        <div className="vch-trow">
+          <button className="vch-back" onClick={onBack} type="button">
+            ‹ 返回
+          </button>
+          <div>
+            <div className="vch-title">SELECT CHALLENGER</div>
+            <div className="vch-zh">选择挑战者</div>
+          </div>
         </div>
-      </header>
+        <div className="vch-mybuild">
+          <span className="vch-mylabel">我方构筑</span>
+          {selectedTraits.length === 0 ? (
+            <span className="vch-myempty">未配置词条</span>
+          ) : (
+            selectedTraits.map((trait, index) => {
+              const category = getMobileCategory(trait.cat);
+              return (
+                <span className="vch-mychip" key={`${trait.id}-${index}`} style={{ "--c": category.color } as React.CSSProperties}>
+                  <span className="bar" />
+                  {trait.name}
+                </span>
+              );
+            })
+          )}
+        </div>
+        <div className="vch-modetabs">
+          <button className="vch-modetab on" type="button">
+            预设敌人<span className="men">PVE</span>
+          </button>
+          <button className="vch-modetab locked" disabled type="button">
+            过往玩家<span className="men">PVP</span>
+          </button>
+        </div>
+      </div>
 
-      <section className="my-build-strip">
-        <span>我方构筑</span>
-        <div>
-          {selectedTraits.map((trait) => {
-            const category = getMobileCategory(trait.cat);
+      <div className="vch-listwrap">
+        <div className="vch-list">
+          {mobileGameData.enemies.map((enemy) => {
+            const active = opponent?.id === enemy.id;
             return (
-              <i key={`${trait.id}-${trait.name}`} style={{ "--cat": category.color } as React.CSSProperties}>
-                {trait.name}
-              </i>
+              <button
+                className={`vch-en ${active ? "on" : ""}`}
+                key={enemy.id}
+                onClick={() => {
+                  playMobileSfx("ui.click");
+                  onOpponentChange(active ? null : enemy);
+                }}
+                style={{ "--ec": enemy.color } as React.CSSProperties}
+                type="button"
+              >
+                <div className="vch-ava">
+                  <BallSprite color={enemy.color} px={5} />
+                  <div className="vch-diff">
+                    {Array.from({ length: 3 }).map((_, index) => (
+                      <i className={index < enemy.diff ? "on" : ""} key={index} style={{ "--ec": enemy.color } as React.CSSProperties} />
+                    ))}
+                  </div>
+                </div>
+                <div className="vch-body">
+                  <div className="vch-head">
+                    <span className="vch-name">{enemy.name}</span>
+                    <span className="vch-style">{enemy.style}</span>
+                    {active ? <span className="vch-check">✓</span> : null}
+                  </div>
+                  <div className="vch-desc">{enemy.desc}</div>
+                  <div className="vch-tchips">
+                    {enemy.traits.map((traitId) => {
+                      const trait = getMobileTrait(traitId);
+                      if (!trait) {
+                        return null;
+                      }
+                      const category = getMobileCategory(trait.cat);
+                      return (
+                        <span className="vch-tchip" key={traitId} style={{ "--tc": category.color } as React.CSSProperties}>
+                          <span className="d" />
+                          {trait.name}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              </button>
             );
           })}
         </div>
-      </section>
-
-      <div className="opponent-list">
-        {mobileGameData.enemies.map((enemy) => {
-          const active = opponent?.id === enemy.id;
-          return (
-            <button
-              className={`opponent-card ${active ? "active" : ""}`}
-              key={enemy.id}
-              onClick={() => {
-                playMobileSfx("ui.click");
-                onOpponentChange(active ? null : enemy);
-              }}
-              style={{ "--foe": enemy.color } as React.CSSProperties}
-              type="button"
-            >
-              <div className="opponent-avatar">
-                <BallSprite color={enemy.color} size={5} />
-                <span>
-                  {Array.from({ length: 3 }).map((_, index) => (
-                    <i className={index < enemy.diff ? "on" : ""} key={index} />
-                  ))}
-                </span>
-              </div>
-              <div className="opponent-copy">
-                <strong>
-                  {enemy.name}
-                  <em>{enemy.style}</em>
-                </strong>
-                <p>{enemy.desc}</p>
-                <div>
-                  {enemy.traits.map((traitId) => {
-                    const trait = getMobileTrait(traitId);
-                    if (!trait) {
-                      return null;
-                    }
-                    const category = getMobileCategory(trait.cat);
-                    return (
-                      <span key={traitId} style={{ "--cat": category.color } as React.CSSProperties}>
-                        {trait.name}
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
-              {active ? <b>✓</b> : null}
-            </button>
-          );
-        })}
+        <div className="vch-more show">
+          <span>▼ 下滑查看更多</span>
+        </div>
       </div>
 
-      <footer className="challenge-dock">
-        <div>
-          <span>我方</span>
-          <strong>VS</strong>
-          <span>{opponent?.name ?? "未选择"}</span>
+      <div className="vch-foot">
+        <div className="vch-vs">
+          <span className="me">
+            我方 · {selectedTraits.length}/{mobileGameData.pickCount} 词条
+          </span>
+          <span className="vs">VS</span>
+          <span className="op">{opponent?.name ?? "— 未选对手 —"}</span>
         </div>
-        <button className={`pixel-button danger ${opponent ? "pulse" : ""}`} disabled={!opponent} onClick={() => opponent && onChallenge(opponent)} type="button">
-          {opponent ? `开始挑战 ${opponent.name}` : "选择一个挑战者"}
+        <button className={`vch-cta ${opponent ? "go" : ""}`} disabled={!opponent} onClick={() => opponent && onChallenge(opponent)} type="button">
+          {opponent ? `开始战斗 ▶ 挑战 ${opponent.name}` : "选择一个挑战者"}
         </button>
-      </footer>
+      </div>
     </section>
   );
 }
@@ -479,103 +603,107 @@ type BattleScreenProps = {
 
 function BattleScreen({ snapshot, paused, speed, onBack, onRestart, onSpeedChange, onTogglePause }: BattleScreenProps) {
   if (!snapshot) {
-    return <section className="mobile-screen battle-screen" />;
+    return <section className="mobile-screen vbt" />;
   }
   const me = snapshot.combatants.find((combatant) => combatant.side === "me") ?? snapshot.combatants[0];
   const foe = snapshot.combatants.find((combatant) => combatant.side === "foe") ?? snapshot.combatants[1];
   if (!me || !foe) {
-    return <section className="mobile-screen battle-screen" />;
+    return <section className="mobile-screen vbt" />;
   }
 
   return (
-    <section className="mobile-screen battle-screen">
-      <header className="battle-hud">
-        <div className="battle-hud-top">
-          <button className="pixel-icon-button" onClick={onBack} type="button">
-            ‹
+    <section className="mobile-screen vbt">
+      <div className="vbt-hud">
+        <div className="vbt-hrow">
+          <button className="vbt-back" onClick={onBack} type="button">
+            ‹ 撤退
           </button>
-          <div className="battle-timer">
-            {formatTime(snapshot.elapsed)}
-            <span>/ {formatTime(snapshot.maxTime)} · {snapshot.status === "fighting" ? "LIVE" : resultLabel(snapshot.status)}</span>
+          <div className="vbt-timer">
+            {formatTime(snapshot.elapsed)} <small>/ {formatTime(snapshot.maxTime)} · {snapshot.status === "fighting" ? snapshot.mode.toUpperCase() : resultLabel(snapshot.status)}</small>
           </div>
-          <button className="pixel-icon-button" onClick={onTogglePause} type="button">
-            {paused ? "▶" : "Ⅱ"}
-          </button>
+          <div className="vbt-speed">
+            <button className={`vbt-sp ${paused ? "on" : ""}`} onClick={onTogglePause} type="button">
+              {paused ? "▶" : "Ⅱ"}
+            </button>
+            {[1, 2, 4].map((value) => (
+              <button className={`vbt-sp ${speed === value ? "on" : ""}`} key={value} onClick={() => onSpeedChange(value)} type="button">
+                {value}×
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="fighters">
+        <div className="vbt-fighters">
           <FighterHud combatant={me} side="me" />
           <FighterHud combatant={foe} side="foe" />
         </div>
-      </header>
+      </div>
 
-      <div className="battle-arena">
-        <div className="arena-grid" />
-        <strong className="arena-vs">VS</strong>
+      <div className="vbt-arena">
+        <div className="vbt-grid" />
+        <div className="vbt-vs">VS</div>
         {snapshot.summons.map((summon) => (
-          <div className={`arena-entity summon ${summon.kind}`} key={summon.id} style={arenaStyle(snapshot, summon.x, summon.y)}>
-            <BallSprite color={summon.color} size={Math.max(2, summon.r / 8)} />
+          <div className="vbt-ent" key={summon.id} style={arenaStyle(snapshot, summon.x, summon.y)}>
+            <div className="vbt-summon">
+              <BallSprite color={summon.color} px={Math.max(2, summon.r / 8)} />
+            </div>
           </div>
         ))}
         {snapshot.combatants.map((combatant) => (
-          <div className="arena-entity combatant" key={combatant.id} style={arenaStyle(snapshot, combatant.x, combatant.y)}>
-            <span>{combatant.name}</span>
-            <BallSprite color={combatant.color} size={Math.max(4, combatant.r / 8)} />
-            {combatant.statuses.map((status) => (
-              <i
-                className={`status-aura ${status.type}`}
-                key={status.type}
-                style={{ "--status": statusColors[status.type] } as React.CSSProperties}
-              />
-            ))}
+          <div className="vbt-ent" key={combatant.id} style={arenaStyle(snapshot, combatant.x, combatant.y)}>
+            <div className="vbt-entbox" style={{ "--ec": combatant.color } as React.CSSProperties}>
+              <span className="vbt-nameTag">{combatant.name}</span>
+              <BallSprite color={combatant.color} px={Math.max(4, combatant.r / 8)} />
+              {combatant.statuses.map((status) => (
+                <i className="vbt-ball-ring" key={status.type} style={{ "--status": statusColors[status.type] } as React.CSSProperties} />
+              ))}
+            </div>
           </div>
         ))}
         {snapshot.projectiles.map((projectile) => (
-          <i
-            className="arena-projectile"
+          <div
+            className="vbt-proj"
             key={projectile.id}
-            style={{ ...arenaStyle(snapshot, projectile.x, projectile.y), "--proj": projectile.color } as React.CSSProperties}
+            style={{ ...arenaStyle(snapshot, projectile.x, projectile.y), background: projectile.color, color: projectile.color } as React.CSSProperties}
           />
         ))}
         {snapshot.floaters.map((floater) => (
-          <b className={`arena-floater ${floater.kind}`} key={floater.id} style={arenaStyle(snapshot, floater.x, floater.y)}>
+          <div className={`vbt-float ${floater.kind}`} key={floater.id} style={arenaStyle(snapshot, floater.x, floater.y)}>
             {floater.text}
-          </b>
+          </div>
         ))}
         {snapshot.status !== "fighting" ? <ResultOverlay status={snapshot.status} /> : null}
       </div>
 
-      <footer className="battle-log-panel">
-        <div className="battle-actions-row">
-          {[1, 2, 4].map((value) => (
-            <button className={speed === value ? "active" : ""} key={value} onClick={() => onSpeedChange(value)} type="button">
-              {value}x
-            </button>
-          ))}
+      <div className="vbt-log">
+        <div className="vbt-loghead">
+          <span>战斗日志</span>
+          <span className="live">
+            <i />
+            LIVE · 服务端裁定
+          </span>
+        </div>
+        <div className="vbt-logbox">
+          {snapshot.log.length > 0 ? (
+            snapshot.log.map((line, index) => (
+              <div className={`vbt-logline ${line.kind}`} key={`${line.t}-${index}`}>
+                <span className="lt">{line.t}</span>
+                <span className="lx">{line.text}</span>
+              </div>
+            ))
+          ) : (
+            <div className="vbt-logline sys">
+              <span className="lt">00:00</span>
+              <span className="lx">战斗开始</span>
+            </div>
+          )}
+        </div>
+        <div className="vbt-actions">
           <button onClick={onRestart} type="button">
             重开
           </button>
         </div>
-        <div className="battle-log-head">
-          <span>战斗日志</span>
-          <em>服务端裁定预留</em>
-        </div>
-        <div className="battle-log">
-          {snapshot.log.length > 0 ? (
-            snapshot.log.map((line, index) => (
-              <p className={line.kind} key={`${line.t}-${index}`}>
-                <span>{line.t}</span>
-                {line.text}
-              </p>
-            ))
-          ) : (
-            <p className="sys">
-              <span>00:00</span>
-              战斗开始
-            </p>
-          )}
-        </div>
-      </footer>
+      </div>
     </section>
   );
 }
@@ -583,30 +711,32 @@ function BattleScreen({ snapshot, paused, speed, onBack, onRestart, onSpeedChang
 function FighterHud({ combatant, side }: { combatant: MobileBattleSnapshot["combatants"][number]; side: "me" | "foe" }) {
   const hpRatio = Math.max(0, Math.min(100, (combatant.hp / combatant.maxHp) * 100));
   return (
-    <div className={`fighter ${side}`} style={{ "--fighter": combatant.color } as React.CSSProperties}>
-      <div>
-        <BallSprite color={combatant.color} size={2} />
+    <div className={`vbt-f ${side}`} style={{ "--fc": combatant.color } as React.CSSProperties}>
+      <div className="vbt-fname">
+        <BallSprite color={combatant.color} px={3} />
         <span>{combatant.name}</span>
       </div>
-      <div className="hp-bar">
+      <div className="vbt-bar">
         <i style={{ width: `${hpRatio}%` }} />
-        {combatant.shield > 0 ? <b style={{ width: `${Math.min(100, combatant.shield)}%` }} /> : null}
-        <em>
+        {combatant.shield > 0 ? <span className="shield" style={{ width: `${Math.min(100, combatant.shield)}%` }} /> : null}
+        <span className="vbt-hp">
           {Math.ceil(combatant.hp)}/{Math.ceil(combatant.maxHp)}
-        </em>
+          {combatant.shield > 0 ? ` +${Math.ceil(combatant.shield)}` : ""}
+        </span>
       </div>
-      <div className="fighter-build">
+      <div className="vbt-fbuild">
         {combatant.build.map((traitId, index) => {
           const trait = getMobileTrait(traitId);
           const category = trait ? getMobileCategory(trait.cat) : null;
-          return <span key={`${traitId}-${index}`} style={{ "--cat": category?.color ?? "#8892a6" } as React.CSSProperties} title={trait?.name} />;
+          return <span className="d" key={`${traitId}-${index}`} style={{ background: category?.color ?? "#8892a6" }} title={trait?.name} />;
         })}
       </div>
       {combatant.statuses.length > 0 ? (
-        <div className="fighter-status">
+        <div className="vbt-fstat">
           {combatant.statuses.map((status) => (
-            <span key={status.type} style={{ "--status": statusColors[status.type] } as React.CSSProperties}>
+            <span className="s" key={status.type} style={{ background: statusColors[status.type] }}>
               {statusLabels[status.type]}
+              {status.stacks > 1 ? ` ${status.stacks}` : ""}
             </span>
           ))}
         </div>
@@ -617,7 +747,7 @@ function FighterHud({ combatant, side }: { combatant: MobileBattleSnapshot["comb
 
 function ResultOverlay({ status }: { status: Exclude<MobileBattleStatus, "fighting"> }) {
   return (
-    <div className="result-overlay">
+    <div className="vbt-result">
       <strong>{resultLabel(status)}</strong>
     </div>
   );
@@ -643,28 +773,83 @@ function arenaStyle(snapshot: MobileBattleSnapshot, x: number, y: number): React
   };
 }
 
-function PixelSprite({ rows, color, size = 3 }: { rows: string[]; color: string; size?: number }) {
+function PixelArt({
+  rows,
+  palette,
+  px = 4,
+  style
+}: {
+  rows: string[];
+  palette: Record<string, string | null>;
+  px?: number;
+  style?: React.CSSProperties;
+}) {
   const shadows = rows.flatMap((row, y) =>
-    [...row].flatMap((cell, x) => (cell === "1" ? [`${x * size}px ${y * size}px 0 ${color}`] : []))
+    [...row].flatMap((cell, x) => {
+      const color = palette[cell];
+      return color ? [`${x * px}px ${y * px}px 0 ${color}`] : [];
+    })
   );
-  const width = (rows[0]?.length ?? 0) * size;
+  const width = (rows[0]?.length ?? 0) * px;
   return (
-    <span className="pixel-sprite" style={{ width, height: rows.length * size }}>
-      <i style={{ width: size, height: size, boxShadow: shadows.join(",") }} />
+    <span className="pixel-art" style={{ width, height: rows.length * px, ...style }}>
+      <i style={{ width: px, height: px, boxShadow: shadows.join(",") }} />
     </span>
   );
 }
 
-function BallSprite({ color, size = 4 }: { color: string; size?: number }) {
-  return <PixelSprite color={color} rows={["001110", "011111", "111111", "111111", "011111", "001110"]} size={size} />;
+function PixelSprite({
+  rows,
+  color,
+  px,
+  size,
+  style
+}: {
+  rows: string[];
+  color: string;
+  px?: number;
+  size?: number;
+  style?: React.CSSProperties;
+}) {
+  const unit = px ?? size ?? 3;
+  const shadows = rows.flatMap((row, y) =>
+    [...row].flatMap((cell, x) => (cell === "1" ? [`${x * unit}px ${y * unit}px 0 ${color}`] : []))
+  );
+  const width = (rows[0]?.length ?? 0) * unit;
+  return (
+    <span className="pixel-sprite" style={{ width, height: rows.length * unit, ...style }}>
+      <i style={{ width: unit, height: unit, boxShadow: shadows.join(",") }} />
+    </span>
+  );
 }
 
-function PixelFace({ className, tone }: { className: string; tone: string }) {
+function BallSprite({ color, px, size, hi = "rgba(255,255,255,.7)" }: { color: string; px?: number; size?: number; hi?: string }) {
+  const unit = px ?? size ?? 4;
+  const rows = ["001110", "011111", "111111", "111111", "011111", "001110"];
+  const shadows = rows.flatMap((row, y) =>
+    [...row].flatMap((cell, x) => {
+      if (cell !== "1") {
+        return [];
+      }
+      const highlight = (y === 1 && x === 2) || (y === 0 && x === 2) || (y === 1 && x === 3);
+      return [`${x * unit}px ${y * unit}px 0 ${highlight ? hi : color}`];
+    })
+  );
   return (
-    <span className={`pixel-face ${className}`} style={{ "--tone": tone } as React.CSSProperties}>
-      <BallSprite color={tone} size={7} />
-      <i />
+    <span className="ball-sprite" style={{ width: 6 * unit, height: 6 * unit }}>
+      <i style={{ width: unit, height: unit, boxShadow: shadows.join(",") }} />
     </span>
+  );
+}
+
+function TraitMini({ trait, onRemove }: { trait: MobileTrait; onRemove: () => void }) {
+  const category = getMobileCategory(trait.cat);
+  return (
+    <button className="tmini" onClick={onRemove} style={{ "--c": category.color } as React.CSSProperties} type="button">
+      <span className="tmini-bar" />
+      <span className="tmini-name">{trait.name}</span>
+      <span className="tmini-x">✕</span>
+    </button>
   );
 }
 
@@ -682,3 +867,44 @@ function formatTime(seconds: number): string {
   const safeSeconds = Math.max(0, Math.floor(seconds));
   return `${String(Math.floor(safeSeconds / 60)).padStart(2, "0")}:${String(safeSeconds % 60).padStart(2, "0")}`;
 }
+
+const MEME_PX = [7, 6, 7, 6, 5, 5];
+
+const startMemes = [
+  {
+    id: "m_grin",
+    name: "笑脸",
+    palette: { ".": null, o: "#15131f", y: "#ffd23f", e: "#2a2233" },
+    rows: ["..ooooo..", ".oyyyyyo.", "oyyyyyyyo", "oyeyyyeyo", "oyyyyyyyo", "oeyyyyyeo", "oyeeeeeyo", ".oyyyyyo.", "..ooooo.."]
+  },
+  {
+    id: "m_cool",
+    name: "墨镜",
+    palette: { ".": null, o: "#15131f", y: "#ffd23f", s: "#15131f", w: "#22d3ff", e: "#2a2233" },
+    rows: ["..ooooo..", ".oyyyyyo.", "oyyyyyyyo", "ossssssso", "owsssswyo", "oyyyyyyyo", "oyyeeeyyo", ".oyyyyyo.", "..ooooo.."]
+  },
+  {
+    id: "m_laugh",
+    name: "狂笑",
+    palette: { ".": null, o: "#15131f", y: "#ffd23f", e: "#2a2233", b: "#22d3ff" },
+    rows: ["..ooooo..", ".oyyyyyo.", "oyeyyyeyo", "byyyyyyyb", "oyeeeeeyo", "oyeeeeeyo", "oyyeeeyyo", ".oyyyyyo.", "..ooooo.."]
+  },
+  {
+    id: "m_cry",
+    name: "大哭",
+    palette: { ".": null, o: "#15131f", y: "#ffd23f", e: "#2a2233", b: "#22d3ff" },
+    rows: ["..ooooo..", ".oyyyyyo.", "oyeyyyeyo", "oybyyybyo", "oybyyybyo", "oyyyyyyyo", "oyeeeeeyo", ".oyyyyyo.", "..ooooo.."]
+  },
+  {
+    id: "m_angry",
+    name: "暴怒",
+    palette: { ".": null, o: "#15131f", r: "#ff4d4d", e: "#2a2233" },
+    rows: ["..ooooo..", ".orrrrro.", "orrrrrrro", "oeerrreeo", "orerrrero", "orrrrrrro", "orreeerro", ".orrrrro.", "..ooooo.."]
+  },
+  {
+    id: "m_skull",
+    name: "骷髅",
+    palette: { ".": null, o: "#15131f", k: "#f4f8ff", e: "#2a2233" },
+    rows: ["..ooooo..", ".okkkkko.", "okkkkkkko", "okeekeeko", "okeekeeko", "okkkekkko", ".okekeko.", ".okkkkko.", "..ooooo.."]
+  }
+] satisfies Array<{ id: string; name: string; palette: Record<string, string | null>; rows: string[] }>;
