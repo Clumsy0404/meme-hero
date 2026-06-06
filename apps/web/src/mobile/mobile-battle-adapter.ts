@@ -73,7 +73,8 @@ export function toMobileBattleSnapshot(
   snapshot: WorldSnapshot,
   blueBuild: BuildConfig,
   redBuild: BuildConfig,
-  opponent: MobileOpponent
+  opponent: MobileOpponent,
+  mode: "pve" | "pvp" = "pve"
 ): MobileBattleSnapshot {
   const mainBalls = snapshot.balls.filter((ball) => ball.role === "main");
   const blueMain = mainBalls.find((ball) => ball.team === "blue");
@@ -82,7 +83,7 @@ export function toMobileBattleSnapshot(
 
   return {
     matchId: `${blueBuild.name}-vs-${opponent.id}`,
-    mode: "pve",
+    mode,
     status,
     tick: snapshot.tick,
     elapsed: snapshot.time,

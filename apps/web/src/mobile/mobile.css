@@ -717,9 +717,62 @@
   box-shadow: inset 0 0 0 var(--px) #0009, 0 var(--px) 0 #0006;
 }
 
-.vch-modetab.locked {
+.vch-build-tools {
+  display: grid;
+  gap: 6px;
+  padding: 7px 8px;
+  background: var(--panel2);
+  box-shadow: inset 0 0 0 var(--px) var(--line);
+}
+
+.vch-tool-actions {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 5px;
+}
+
+.vch-tool-actions button {
+  min-width: 0;
+  min-height: 28px;
+  padding: 5px 4px;
+  color: #0b0f1f;
+  background: var(--accent);
+  border: 0;
+  cursor: pointer;
+  font-size: 11px;
+  box-shadow: inset 0 0 0 2px #0009, 0 2px 0 #0007;
+}
+
+.vch-tool-actions button:disabled {
+  color: var(--line);
+  background: var(--panel);
   cursor: not-allowed;
-  opacity: 0.48;
+  box-shadow: inset 0 0 0 var(--px) var(--line);
+}
+
+.vch-build-tools input {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 6px 7px;
+  color: var(--ink);
+  background: var(--bg);
+  border: 0;
+  outline: none;
+  font: inherit;
+  font-size: 10px;
+  box-shadow: inset 0 0 0 var(--px) var(--line);
+}
+
+.vch-build-tools input::placeholder {
+  color: var(--line);
+}
+
+.vch-build-tools > span {
+  min-height: 14px;
+  color: var(--ink-dim);
+  font-size: 10px;
+  line-height: 1.35;
 }
 
 .vch-listwrap {
@@ -910,6 +963,33 @@
   width: 6px;
   height: 6px;
   background: var(--tc);
+}
+
+.vch-pmeta {
+  color: var(--ink-dim);
+  font-size: 9px;
+}
+
+.vch-empty {
+  display: grid;
+  gap: 8px;
+  place-items: center;
+  min-height: 150px;
+  padding: 18px;
+  color: var(--ink-dim);
+  background: var(--panel);
+  text-align: center;
+  box-shadow: inset 0 0 0 var(--px) var(--line), 0 var(--px) 0 #0006;
+}
+
+.vch-empty strong {
+  color: var(--accent2);
+  font-size: 16px;
+}
+
+.vch-empty span {
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .vch-foot {

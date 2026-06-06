@@ -24,6 +24,25 @@ import { toMobileBattleSnapshot, type MobileBattleSnapshot, type MobileBattleSta
 import "./mobile.css";
 
 type MobileScreen = "start" | "traits" | "challenger" | "battle";
+type ChallengerMode = "enemy" | "player";
+
+type PlayerBuildRecord = {
+  id: string;
+  name: string;
+  style: string;
+  desc: string;
+  color: string;
+  diff: number;
+  traits: TraitId[];
+  createdAt: string;
+  source: "local" | "imported";
+};
+
+type MobileOpponentLike = MobileOpponent | PlayerBuildRecord;
+
+type ImportBuildResult =
+  | { ok: true; record: PlayerBuildRecord }
+  | { ok: false; message: string };
 
 type MobileAppProps = {
   onOpenDeveloper: () => void;
@@ -32,7 +51,8 @@ type MobileAppProps = {
 export function MobileApp({ onOpenDeveloper }: MobileAppProps) {
   const [screen, setScreen] = useState<MobileScreen>("start");
   const [selectedTraits, setSelectedTraits] = useState<MobileTrait[]>([]);
-  const [opponent, setOpponent] = useState<MobileOpponent | null>(null);
+  const [opponent, setOpponent] = useState<MobileOpponentLike | null>(null);
+  const [savedBuilds, setSavedBuilds] = useState<PlayerBuildRecord[]>(() => loadPlayerBuildRecords());
 
   const blueBuild = useMemo(
     () => createBuildConfig("我方小球", "mobile_blue", selectedTraits.map((trait) => trait.id)),
@@ -53,7 +73,7 @@ export function MobileApp({ onOpenDeveloper }: MobileAppProps) {
     setScreen("challenger");
   }, []);
 
-  const handleChallenge = useCallback((nextOpponent: MobileOpponent) => {
+  const handleChallenge = useCallback((nextOpponent: MobileOpponentLike) => {
     playMobileSfx("battle.start");
     setOpponent(nextOpponent);
     setScreen("battle");
@@ -69,6 +89,35 @@ export function MobileApp({ onOpenDeveloper }: MobileAppProps) {
     setScreen("challenger");
   }, []);
 
+  const handleSavePlayerBuild = useCallback(() => {
+    const traitIds = selectedTraits.map((trait) => trait.id);
+    const validation = validateBuildTraitIds(traitIds);
+    if (!validation.ok) {
+      return null;
+    }
+    const record = createPlayerBuildRecord(validation.traits, "local");
+    setSavedBuilds((records) => {
+      const nextRecords = [record, ...records].slice(0, 24);
+      savePlayerBuildRecords(nextRecords);
+      return nextRecords;
+    });
+    return record;
+  }, [selectedTraits]);
+
+  const handleImportPlayerBuild = useCallback((code: string): ImportBuildResult => {
+    const decoded = decodeBuildCode(code);
+    if (!decoded.ok) {
+      return decoded;
+    }
+    const record = createPlayerBuildRecord(decoded.traits, "imported", decoded.name);
+    setSavedBuilds((records) => {
+      const nextRecords = [record, ...records].slice(0, 24);
+      savePlayerBuildRecords(nextRecords);
+      return nextRecords;
+    });
+    return { ok: true, record };
+  }, []);
+
   return (
     <main className="mobile-shell">
       <div className="mobile-phone" data-screen={screen}>
@@ -81,10 +130,13 @@ export function MobileApp({ onOpenDeveloper }: MobileAppProps) {
         {screen === "challenger" ? (
           <ChallengerScreen
             opponent={opponent}
+            savedBuilds={savedBuilds}
             selectedTraits={selectedTraits}
             onBack={handleBackToTraits}
             onChallenge={handleChallenge}
+            onImportBuild={handleImportPlayerBuild}
             onOpponentChange={setOpponent}
+            onSaveBuild={handleSavePlayerBuild}
           />
         ) : null}
         {screen === "battle" && opponent && redBuild ? (
@@ -368,14 +420,74 @@ function TraitSelectScreen({ selectedTraits, onConfirm, onTraitsChange }: TraitS
 }
 
 type ChallengerScreenProps = {
-  opponent: MobileOpponent | null;
+  opponent: MobileOpponentLike | null;
+  savedBuilds: PlayerBuildRecord[];
   selectedTraits: MobileTrait[];
   onBack: () => void;
-  onChallenge: (opponent: MobileOpponent) => void;
-  onOpponentChange: (opponent: MobileOpponent | null) => void;
+  onChallenge: (opponent: MobileOpponentLike) => void;
+  onImportBuild: (code: string) => ImportBuildResult;
+  onOpponentChange: (opponent: MobileOpponentLike | null) => void;
+  onSaveBuild: () => PlayerBuildRecord | null;
 };
 
-function ChallengerScreen({ opponent, selectedTraits, onBack, onChallenge, onOpponentChange }: ChallengerScreenProps) {
+function ChallengerScreen({
+  opponent,
+  savedBuilds,
+  selectedTraits,
+  onBack,
+  onChallenge,
+  onImportBuild,
+  onOpponentChange,
+  onSaveBuild
+}: ChallengerScreenProps) {
+  const [mode, setMode] = useState<ChallengerMode>("enemy");
+  const [buildCode, setBuildCode] = useState("");
+  const [buildMessage, setBuildMessage] = useState("保存或导入构筑后，可在过往玩家中挑战。");
+  const currentBuildCode = selectedTraits.length === mobileGameData.pickCount ? encodeBuildCode(selectedTraits.map((trait) => trait.id)) : "";
+
+  const handleModeChange = useCallback(
+    (nextMode: ChallengerMode) => {
+      playMobileSfx("ui.click");
+      setMode(nextMode);
+      onOpponentChange(null);
+    },
+    [onOpponentChange]
+  );
+
+  const handleSave = useCallback(() => {
+    playMobileSfx("ui.confirm");
+    const record = onSaveBuild();
+    if (!record) {
+      setBuildMessage("当前构筑不完整，无法保存。");
+      return;
+    }
+    setMode("player");
+    onOpponentChange(record);
+    setBuildMessage(`已保存：${record.name}`);
+  }, [onOpponentChange, onSaveBuild]);
+
+  const handleExport = useCallback(() => {
+    if (!currentBuildCode) {
+      setBuildMessage("当前构筑不完整，无法导出。");
+      return;
+    }
+    playMobileSfx("ui.click");
+    setBuildCode(currentBuildCode);
+    setBuildMessage("构筑码已生成，可手动复制。");
+  }, [currentBuildCode]);
+
+  const handleImport = useCallback(() => {
+    playMobileSfx("ui.confirm");
+    const result = onImportBuild(buildCode);
+    if (!result.ok) {
+      setBuildMessage(result.message);
+      return;
+    }
+    setMode("player");
+    onOpponentChange(result.record);
+    setBuildMessage(`已导入：${result.record.name}`);
+  }, [buildCode, onImportBuild, onOpponentChange]);
+
   return (
     <section className="mobile-screen vch">
       <div className="vch-top">
@@ -405,18 +517,38 @@ function ChallengerScreen({ opponent, selectedTraits, onBack, onChallenge, onOpp
           )}
         </div>
         <div className="vch-modetabs">
-          <button className="vch-modetab on" type="button">
+          <button className={`vch-modetab ${mode === "enemy" ? "on" : ""}`} onClick={() => handleModeChange("enemy")} type="button">
             预设敌人<span className="men">PVE</span>
           </button>
-          <button className="vch-modetab locked" disabled type="button">
+          <button className={`vch-modetab ${mode === "player" ? "on" : ""}`} onClick={() => handleModeChange("player")} type="button">
             过往玩家<span className="men">PVP</span>
           </button>
+        </div>
+        <div className="vch-build-tools">
+          <div className="vch-tool-actions">
+            <button disabled={selectedTraits.length !== mobileGameData.pickCount} onClick={handleSave} type="button">
+              保存构筑
+            </button>
+            <button disabled={!currentBuildCode} onClick={handleExport} type="button">
+              导出
+            </button>
+            <button onClick={handleImport} type="button">
+              导入
+            </button>
+          </div>
+          <input
+            aria-label="构筑码"
+            onChange={(event) => setBuildCode(event.target.value)}
+            placeholder="粘贴或生成构筑码"
+            value={buildCode}
+          />
+          <span>{buildMessage}</span>
         </div>
       </div>
 
       <div className="vch-listwrap">
         <div className="vch-list">
-          {mobileGameData.enemies.map((enemy) => {
+          {mode === "enemy" ? mobileGameData.enemies.map((enemy) => {
             const active = opponent?.id === enemy.id;
             return (
               <button
@@ -462,9 +594,60 @@ function ChallengerScreen({ opponent, selectedTraits, onBack, onChallenge, onOpp
                 </div>
               </button>
             );
-          })}
+          }) : null}
+          {mode === "player" && savedBuilds.length === 0 ? (
+            <div className="vch-empty">
+              <strong>暂无过往玩家</strong>
+              <span>保存当前构筑，或导入别人的构筑码。</span>
+            </div>
+          ) : null}
+          {mode === "player"
+            ? savedBuilds.map((record) => {
+                const active = opponent?.id === record.id;
+                return (
+                  <button
+                    className={`vch-en ${active ? "on" : ""}`}
+                    key={record.id}
+                    onClick={() => {
+                      playMobileSfx("ui.click");
+                      onOpponentChange(active ? null : record);
+                    }}
+                    style={{ "--ec": record.color } as React.CSSProperties}
+                    type="button"
+                  >
+                    <div className="vch-ava">
+                      <BallSprite color={record.color} px={5} />
+                      <div className="vch-pmeta">{record.source === "imported" ? "导入" : "本地"}</div>
+                    </div>
+                    <div className="vch-body">
+                      <div className="vch-head">
+                        <span className="vch-name">{record.name}</span>
+                        <span className="vch-style">{record.style}</span>
+                        {active ? <span className="vch-check">✓</span> : null}
+                      </div>
+                      <div className="vch-desc">{record.desc}</div>
+                      <div className="vch-tchips">
+                        {record.traits.map((traitId, index) => {
+                          const trait = getMobileTrait(traitId);
+                          if (!trait) {
+                            return null;
+                          }
+                          const category = getMobileCategory(trait.cat);
+                          return (
+                            <span className="vch-tchip" key={`${traitId}-${index}`} style={{ "--tc": category.color } as React.CSSProperties}>
+                              <span className="d" />
+                              {trait.name}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })
+            : null}
         </div>
-        <div className="vch-more show">
+        <div className={`vch-more ${mode === "enemy" || savedBuilds.length > 3 ? "show" : ""}`}>
           <span>▼ 下滑查看更多</span>
         </div>
       </div>
@@ -478,7 +661,7 @@ function ChallengerScreen({ opponent, selectedTraits, onBack, onChallenge, onOpp
           <span className="op">{opponent?.name ?? "— 未选对手 —"}</span>
         </div>
         <button className={`vch-cta ${opponent ? "go" : ""}`} disabled={!opponent} onClick={() => opponent && onChallenge(opponent)} type="button">
-          {opponent ? `开始战斗 ▶ 挑战 ${opponent.name}` : "选择一个挑战者"}
+          {opponent ? `开始战斗 ▶ ${mode === "player" ? "决斗" : "挑战"} ${opponent.name}` : mode === "player" ? "选择一个过往玩家" : "选择一个挑战者"}
         </button>
       </div>
     </section>
@@ -487,7 +670,7 @@ function ChallengerScreen({ opponent, selectedTraits, onBack, onChallenge, onOpp
 
 type MobileBattleFlowProps = {
   blueBuild: BuildConfig;
-  opponent: MobileOpponent;
+  opponent: MobileOpponentLike;
   redBuild: BuildConfig;
   onBack: () => void;
 };
@@ -496,7 +679,8 @@ function MobileBattleFlow({ blueBuild, opponent, redBuild, onBack }: MobileBattl
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [restartToken, setRestartToken] = useState(0);
-  const snapshot = useMobileBattleSnapshot(blueBuild, redBuild, opponent, paused, speed, restartToken);
+  const battleMode: MobileBattleSnapshot["mode"] = isPlayerBuildRecord(opponent) ? "pvp" : "pve";
+  const snapshot = useMobileBattleSnapshot(blueBuild, redBuild, opponent, battleMode, paused, speed, restartToken);
 
   const handleSpeedChange = useCallback((nextSpeed: number) => {
     playMobileSfx("ui.click");
@@ -525,7 +709,8 @@ function MobileBattleFlow({ blueBuild, opponent, redBuild, onBack }: MobileBattl
 function useMobileBattleSnapshot(
   blueBuild: BuildConfig,
   redBuild: BuildConfig,
-  opponent: MobileOpponent,
+  opponent: MobileOpponentLike,
+  mode: MobileBattleSnapshot["mode"],
   paused: boolean,
   speed: number,
   restartToken: number
@@ -550,7 +735,7 @@ function useMobileBattleSnapshot(
     let world: BattleWorldState = createBattle(createMatchConfig(blueBuild, redBuild, 20260607 + restartToken), DEFAULT_ARENA);
 
     const publish = () => {
-      const nextSnapshot = toMobileBattleSnapshot(getSnapshot(world), blueBuild, redBuild, opponent);
+      const nextSnapshot = toMobileBattleSnapshot(getSnapshot(world), blueBuild, redBuild, opponent, mode);
       setSnapshot(nextSnapshot);
     };
 
@@ -586,7 +771,7 @@ function useMobileBattleSnapshot(
       disposed = true;
       window.cancelAnimationFrame(animationFrame);
     };
-  }, [blueBuild, opponent, redBuild, restartToken]);
+  }, [blueBuild, mode, opponent, redBuild, restartToken]);
 
   return snapshot;
 }
@@ -684,19 +869,10 @@ function BattleScreen({ snapshot, paused, speed, onBack, onRestart, onSpeedChang
           </span>
         </div>
         <div className="vbt-logbox">
-          {snapshot.log.length > 0 ? (
-            snapshot.log.map((line, index) => (
-              <div className={`vbt-logline ${line.kind}`} key={`${line.t}-${index}`}>
-                <span className="lt">{line.t}</span>
-                <span className="lx">{line.text}</span>
-              </div>
-            ))
-          ) : (
-            <div className="vbt-logline sys">
-              <span className="lt">00:00</span>
-              <span className="lx">战斗开始</span>
-            </div>
-          )}
+          <div className="vbt-logline sys">
+            <span className="lt">{formatTime(snapshot.elapsed)}</span>
+            <span className="lx">战斗中</span>
+          </div>
         </div>
         <div className="vbt-actions">
           <button onClick={onRestart} type="button">
@@ -869,6 +1045,155 @@ function formatTime(seconds: number): string {
 }
 
 const MEME_PX = [7, 6, 7, 6, 5, 5];
+const PLAYER_BUILD_STORAGE_KEY = "meme-hero.mobile.player-builds.v1";
+const PLAYER_BUILD_CODE_VERSION = 1;
+const playerBuildColors = ["#22d3ff", "#ff2e63", "#3ddc84", "#ffb627", "#b14aff", "#ff5db1", "#7aa2ff"];
+
+type BuildCodePayload = {
+  v: number;
+  name?: string;
+  traits: TraitId[];
+};
+
+function loadPlayerBuildRecords(): PlayerBuildRecord[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+  try {
+    const raw = window.localStorage.getItem(PLAYER_BUILD_STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed.flatMap((item) => {
+      const record = normalizePlayerBuildRecord(item);
+      return record ? [record] : [];
+    });
+  } catch {
+    return [];
+  }
+}
+
+function savePlayerBuildRecords(records: PlayerBuildRecord[]): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.setItem(PLAYER_BUILD_STORAGE_KEY, JSON.stringify(records));
+}
+
+function normalizePlayerBuildRecord(value: unknown): PlayerBuildRecord | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const candidate = value as Partial<PlayerBuildRecord>;
+  if (typeof candidate.id !== "string" || typeof candidate.name !== "string" || !Array.isArray(candidate.traits)) {
+    return null;
+  }
+  const validation = validateBuildTraitIds(candidate.traits);
+  if (!validation.ok) {
+    return null;
+  }
+  const createdAt = typeof candidate.createdAt === "string" ? candidate.createdAt : new Date().toISOString();
+  return {
+    id: candidate.id,
+    name: candidate.name,
+    style: typeof candidate.style === "string" ? candidate.style : "玩家构筑",
+    desc: typeof candidate.desc === "string" ? candidate.desc : describeBuild(validation.traits),
+    color: typeof candidate.color === "string" ? candidate.color : pickPlayerBuildColor(candidate.id),
+    diff: typeof candidate.diff === "number" ? Math.max(1, Math.min(3, Math.round(candidate.diff))) : 2,
+    traits: validation.traits,
+    createdAt,
+    source: candidate.source === "imported" ? "imported" : "local"
+  };
+}
+
+function isPlayerBuildRecord(opponent: MobileOpponentLike): opponent is PlayerBuildRecord {
+  return "source" in opponent;
+}
+
+function createPlayerBuildRecord(traits: TraitId[], source: "local" | "imported", preferredName?: string): PlayerBuildRecord {
+  const createdAt = new Date().toISOString();
+  const id = `${source}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return {
+    id,
+    name: preferredName?.trim() || `${source === "imported" ? "导入构筑" : "本地构筑"} ${formatRecordTime(createdAt)}`,
+    style: source === "imported" ? "过往玩家" : "本地玩家",
+    desc: describeBuild(traits),
+    color: pickPlayerBuildColor(id),
+    diff: 2,
+    traits,
+    createdAt,
+    source
+  };
+}
+
+function validateBuildTraitIds(traits: unknown): { ok: true; traits: TraitId[] } | { ok: false; message: string } {
+  if (!Array.isArray(traits)) {
+    return { ok: false, message: "构筑格式不正确。" };
+  }
+  if (traits.length !== mobileGameData.pickCount) {
+    return { ok: false, message: `构筑必须包含 ${mobileGameData.pickCount} 个词条。` };
+  }
+  const traitIds = traits.filter((trait): trait is TraitId => typeof trait === "string" && Boolean(getMobileTrait(trait as TraitId)));
+  if (traitIds.length !== traits.length) {
+    return { ok: false, message: "构筑里包含未知词条。" };
+  }
+  return { ok: true, traits: traitIds };
+}
+
+function encodeBuildCode(traits: TraitId[], name = "玩家构筑"): string {
+  const payload: BuildCodePayload = { v: PLAYER_BUILD_CODE_VERSION, name, traits };
+  const json = JSON.stringify(payload);
+  return window.btoa(unescape(encodeURIComponent(json)));
+}
+
+function decodeBuildCode(code: string): { ok: true; name?: string; traits: TraitId[] } | { ok: false; message: string } {
+  const trimmed = code.trim();
+  if (!trimmed) {
+    return { ok: false, message: "请先粘贴构筑码。" };
+  }
+  try {
+    const payload = JSON.parse(decodeURIComponent(escape(window.atob(trimmed)))) as Partial<BuildCodePayload>;
+    if (payload.v !== PLAYER_BUILD_CODE_VERSION) {
+      return { ok: false, message: "构筑码版本不兼容。" };
+    }
+    const validation = validateBuildTraitIds(payload.traits);
+    if (!validation.ok) {
+      return validation;
+    }
+    const name = typeof payload.name === "string" ? payload.name : undefined;
+    return name ? { ok: true, name, traits: validation.traits } : { ok: true, traits: validation.traits };
+  } catch {
+    return { ok: false, message: "构筑码无法解析。" };
+  }
+}
+
+function describeBuild(traits: TraitId[]): string {
+  return traits
+    .map((traitId) => getMobileTrait(traitId)?.name)
+    .filter((name): name is string => Boolean(name))
+    .join(" · ");
+}
+
+function formatRecordTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  return `${month}-${day} ${hour}:${minute}`;
+}
+
+function pickPlayerBuildColor(seed: string): string {
+  const total = [...seed].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return playerBuildColors[total % playerBuildColors.length] ?? "#22d3ff";
+}
 
 const startMemes = [
   {
