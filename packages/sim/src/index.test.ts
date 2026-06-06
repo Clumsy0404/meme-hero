@@ -114,6 +114,30 @@ describe("sim bootstrap", () => {
     expect(stats.collisionDamage).toBe(0);
   });
 
+  it("applies base stat balance overrides before trait modifiers", () => {
+    const stats = createStatsForBuild(
+      {
+        version: "0.1",
+        name: "Tuned HP",
+        skin: "default_blue",
+        baseModel: "default",
+        traits: ["hp_boost", "speed_boost", "collision_boost"]
+      },
+      undefined,
+      {
+        baseStats: {
+          maxHp: 80,
+          moveSpeed: 200,
+          radius: 60
+        }
+      }
+    );
+
+    expect(stats.maxHp).toBe(96);
+    expect(stats.moveSpeed).toBeCloseTo(230);
+    expect(stats.radius).toBe(60);
+  });
+
   it("keeps body collision damage for non-projectile builds", () => {
     const stats = createStatsForBuild({
       version: "0.1",
@@ -299,6 +323,32 @@ describe("sim bootstrap", () => {
     expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "projectile_fire")).toBe(true);
   });
 
+  it("applies projectile balance overrides to fired shots", () => {
+    const world = createBattle(
+      makeMatch(["ranged_core", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 480, height: 240 },
+      {
+        projectile: {
+          damage: 3,
+          speed: 160,
+          radius: 18,
+          lifetime: 2.2,
+          cooldown: 0.8
+        }
+      }
+    );
+    placeSeparatedMainBalls(world, 100, 380, 120);
+
+    stepBattle(world, 1 / 60, 0);
+    const projectile = world.projectiles[0];
+
+    expect(projectile?.damage).toBeCloseTo(3.9);
+    expect(Math.hypot(projectile!.velocity.x, projectile!.velocity.y)).toBeCloseTo(160);
+    expect(projectile?.radius).toBe(18);
+    expect(projectile?.lifetime).toBeCloseTo(2.2 - 1 / 60);
+    expect(world.balls[0]?.runtime.projectileCooldown).toBeCloseTo(0.8);
+  });
+
   it("damages enemies with projectile hit events", () => {
     const world = createBattle(
       makeMatch(["ranged_core", "hp_boost", "hp_boost"], hpStackTraits),
@@ -479,6 +529,37 @@ describe("sim bootstrap", () => {
     expect(world.projectiles.some((projectile) => projectile.ownerId === "blue-main")).toBe(true);
     expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "turret_spawn")).toBe(true);
     expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "turret_fire")).toBe(true);
+  });
+
+  it("applies turret balance overrides to spawned turrets and shots", () => {
+    const world = createBattle(
+      makeMatch(["auto_turret", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 260, height: 180 },
+      {
+        turret: {
+          turretHp: 24,
+          turretRadius: 42,
+          turretProjectileDamage: 4,
+          turretProjectileCooldown: 0.75,
+          turretProjectileSpeed: 190,
+          turretProjectileRadius: 16,
+          turretProjectileLifetime: 1.7
+        }
+      }
+    );
+    placeSeparatedMainBalls(world, 60, 220);
+
+    stepBattle(world, 1 / 60, 0);
+    const turret = world.turrets[0];
+    const projectile = world.projectiles.find((shot) => shot.ownerId === "blue-main");
+
+    expect(turret?.hp).toBe(24);
+    expect(turret?.radius).toBe(42);
+    expect(projectile?.damage).toBe(4);
+    expect(projectile?.radius).toBe(16);
+    expect(projectile?.lifetime).toBeCloseTo(1.7 - 1 / 60);
+    expect(Math.hypot(projectile!.velocity.x, projectile!.velocity.y)).toBeCloseTo(190);
+    expect(turret?.projectileCooldown).toBeCloseTo(0.75);
   });
 
   it("applies on-hit status payloads and resolves dot damage", () => {

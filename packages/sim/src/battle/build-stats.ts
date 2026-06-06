@@ -1,5 +1,5 @@
 import { baseBallStats, getRequiredTraitDefinition, validateBuildConfig } from "@ball-brawl/content";
-import type { BallStats, BuildConfig, StatKey, StatModifier } from "@ball-brawl/shared";
+import type { BallStats, BattleBalanceOverrides, BuildConfig, StatKey, StatModifier } from "@ball-brawl/shared";
 
 const statKeys: StatKey[] = [
   "maxHp",
@@ -18,7 +18,11 @@ type ModifierBucket = {
   multiplier: number;
 };
 
-export function createStatsForBuild(build: BuildConfig, baseStats: BallStats = baseBallStats): BallStats {
+export function createStatsForBuild(
+  build: BuildConfig,
+  baseStats: BallStats = baseBallStats,
+  overrides?: BattleBalanceOverrides
+): BallStats {
   const validation = validateBuildConfig(build);
   if (!validation.ok) {
     throw new Error(`Invalid build config: ${validation.issues.map((issue) => issue.message).join(" ")}`);
@@ -32,11 +36,28 @@ export function createStatsForBuild(build: BuildConfig, baseStats: BallStats = b
     }
   }
 
-  const stats = clampStats(applyModifierBuckets(baseStats, buckets));
+  const stats = clampStats(applyModifierBuckets(applyBaseStatOverrides(baseStats, overrides?.baseStats), buckets));
   if (hasProjectileTrait(build)) {
     stats.collisionDamage = 0;
   }
   return stats;
+}
+
+function applyBaseStatOverrides(baseStats: BallStats, overrides: Partial<BallStats> | undefined): BallStats {
+  if (!overrides) {
+    return baseStats;
+  }
+
+  return {
+    maxHp: readFiniteNumber(overrides.maxHp, baseStats.maxHp),
+    radius: readFiniteNumber(overrides.radius, baseStats.radius),
+    moveSpeed: readFiniteNumber(overrides.moveSpeed, baseStats.moveSpeed),
+    collisionDamage: readFiniteNumber(overrides.collisionDamage, baseStats.collisionDamage),
+    collisionCooldown: readFiniteNumber(overrides.collisionCooldown, baseStats.collisionCooldown),
+    knockback: readFiniteNumber(overrides.knockback, baseStats.knockback),
+    damageReduction: readFiniteNumber(overrides.damageReduction, baseStats.damageReduction),
+    hpRegen: readFiniteNumber(overrides.hpRegen, baseStats.hpRegen)
+  };
 }
 
 function hasProjectileTrait(build: BuildConfig): boolean {
@@ -92,4 +113,8 @@ function clampStats(stats: BallStats): BallStats {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function readFiniteNumber(value: number | undefined, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }

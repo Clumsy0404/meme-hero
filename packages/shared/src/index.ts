@@ -133,6 +133,30 @@ export type BallStats = {
   hpRegen: number;
 };
 
+export type ProjectileBalanceOverrides = Partial<{
+  damage: number;
+  cooldown: number;
+  speed: number;
+  radius: number;
+  lifetime: number;
+}>;
+
+export type TurretBalanceOverrides = Partial<{
+  turretHp: number;
+  turretRadius: number;
+  turretProjectileDamage: number;
+  turretProjectileCooldown: number;
+  turretProjectileSpeed: number;
+  turretProjectileRadius: number;
+  turretProjectileLifetime: number;
+}>;
+
+export type BattleBalanceOverrides = {
+  baseStats?: Partial<BallStats>;
+  projectile?: ProjectileBalanceOverrides;
+  turret?: TurretBalanceOverrides;
+};
+
 export type BuildValidationIssueCode =
   | "missing_version"
   | "missing_base_model"

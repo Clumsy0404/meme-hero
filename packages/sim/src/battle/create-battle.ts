@@ -1,4 +1,4 @@
-import type { BallStats, MatchConfig, Team, Vec2 } from "@ball-brawl/shared";
+import type { BallStats, BattleBalanceOverrides, MatchConfig, Team, Vec2 } from "@ball-brawl/shared";
 
 import { normalize, vec } from "../math/vector";
 import { SeededRng } from "../rng/seeded-rng";
@@ -12,13 +12,17 @@ export const DEFAULT_ARENA: ArenaState = {
   height: 920
 };
 
-export function createBattle(match: MatchConfig, arena: ArenaState = DEFAULT_ARENA): BattleWorldState {
+export function createBattle(
+  match: MatchConfig,
+  arena: ArenaState = DEFAULT_ARENA,
+  balanceOverrides?: BattleBalanceOverrides
+): BattleWorldState {
   const rng = new SeededRng(match.seed);
   const centerY = arena.height / 2;
-  const blueStats = createStatsForBuild(match.blue);
-  const redStats = createStatsForBuild(match.red);
-  const blueMechanics = createMechanicsForBuild(match.blue);
-  const redMechanics = createMechanicsForBuild(match.red);
+  const blueStats = createStatsForBuild(match.blue, undefined, balanceOverrides);
+  const redStats = createStatsForBuild(match.red, undefined, balanceOverrides);
+  const blueMechanics = createMechanicsForBuild(match.blue, balanceOverrides);
+  const redMechanics = createMechanicsForBuild(match.red, balanceOverrides);
   const blue = createMainBall(
     "blue-main",
     "blue",

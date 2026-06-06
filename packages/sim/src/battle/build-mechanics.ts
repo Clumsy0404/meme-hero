@@ -1,5 +1,5 @@
 import { getRequiredTraitDefinition } from "@ball-brawl/content";
-import type { BuildConfig } from "@ball-brawl/shared";
+import type { BattleBalanceOverrides, BuildConfig } from "@ball-brawl/shared";
 
 import type {
   BallMechanics,
@@ -12,6 +12,18 @@ import type {
   SummonMechanics
 } from "./types";
 
+type ProjectileMechanicsConfig = Pick<ProjectileMechanics, "damage" | "cooldown" | "speed" | "radius" | "lifetime">;
+type TurretMechanicsConfig = Pick<
+  SummonMechanics,
+  | "turretHp"
+  | "turretRadius"
+  | "turretProjectileDamage"
+  | "turretProjectileCooldown"
+  | "turretProjectileSpeed"
+  | "turretProjectileRadius"
+  | "turretProjectileLifetime"
+>;
+
 const emptyCollisionMechanics: CollisionMechanics = {
   lifestealRatio: 0,
   healPerSecondLimit: 0,
@@ -23,13 +35,17 @@ const emptyCollisionMechanics: CollisionMechanics = {
   wallChargeDamagePercentPerStack: 0
 };
 
-const baseProjectileMechanics: ProjectileMechanics = {
-  enabled: false,
+export const defaultProjectileMechanicsConfig: ProjectileMechanicsConfig = {
   damage: 2,
   cooldown: 1.1,
   speed: 280,
   radius: 12,
-  lifetime: 3.2,
+  lifetime: 3.2
+};
+
+const baseProjectileMechanics: ProjectileMechanics = {
+  enabled: false,
+  ...defaultProjectileMechanicsConfig,
   extraProjectiles: 0,
   spreadAngleDeg: 0,
   bounces: 0,
@@ -37,6 +53,16 @@ const baseProjectileMechanics: ProjectileMechanics = {
   pierces: 0,
   splitCount: 0,
   childRadiusMultiplier: 0.72
+};
+
+export const defaultTurretMechanicsConfig: TurretMechanicsConfig = {
+  turretHp: 18,
+  turretRadius: 36,
+  turretProjectileDamage: 1,
+  turretProjectileCooldown: 1.8,
+  turretProjectileSpeed: 280,
+  turretProjectileRadius: 10,
+  turretProjectileLifetime: 3
 };
 
 const emptySummonMechanics: SummonMechanics = {
@@ -50,13 +76,7 @@ const emptySummonMechanics: SummonMechanics = {
   turretLimit: 0,
   turretCooldown: 0,
   turretLifetime: 0,
-  turretHp: 18,
-  turretRadius: 36,
-  turretProjectileDamage: 1,
-  turretProjectileCooldown: 1.8,
-  turretProjectileSpeed: 280,
-  turretProjectileRadius: 10,
-  turretProjectileLifetime: 3
+  ...defaultTurretMechanicsConfig
 };
 
 const emptyStatusMechanics: StatusMechanics = {
@@ -80,10 +100,10 @@ const emptyRuleMechanics: RuleMechanics = {
   reviveHpRatio: 0
 };
 
-export function createMechanicsForBuild(build: BuildConfig): BallMechanics {
+export function createMechanicsForBuild(build: BuildConfig, overrides?: BattleBalanceOverrides): BallMechanics {
   const collision = { ...emptyCollisionMechanics };
-  const projectile = { ...baseProjectileMechanics };
-  const summon = { ...emptySummonMechanics };
+  const projectile = applyProjectileOverrides({ ...baseProjectileMechanics }, overrides?.projectile);
+  const summon = applyTurretOverrides({ ...emptySummonMechanics }, overrides?.turret);
   const status: StatusMechanics = { ...emptyStatusMechanics, onHit: [] };
   const rule = { ...emptyRuleMechanics };
   let fireRateMultiplier = 1;
@@ -181,6 +201,40 @@ export function createMechanicsForBuild(build: BuildConfig): BallMechanics {
   return { collision, projectile, summon, status, rule };
 }
 
+function applyProjectileOverrides(
+  mechanics: ProjectileMechanics,
+  overrides: BattleBalanceOverrides["projectile"] | undefined
+): ProjectileMechanics {
+  if (!overrides) {
+    return mechanics;
+  }
+
+  mechanics.damage = readNumberAtLeast(overrides.damage, mechanics.damage, 0);
+  mechanics.cooldown = readNumberAtLeast(overrides.cooldown, mechanics.cooldown, 0.05);
+  mechanics.speed = readNumberAtLeast(overrides.speed, mechanics.speed, 1);
+  mechanics.radius = readNumberAtLeast(overrides.radius, mechanics.radius, 1);
+  mechanics.lifetime = readNumberAtLeast(overrides.lifetime, mechanics.lifetime, 0.05);
+  return mechanics;
+}
+
+function applyTurretOverrides(
+  mechanics: SummonMechanics,
+  overrides: BattleBalanceOverrides["turret"] | undefined
+): SummonMechanics {
+  if (!overrides) {
+    return mechanics;
+  }
+
+  mechanics.turretHp = readNumberAtLeast(overrides.turretHp, mechanics.turretHp, 1);
+  mechanics.turretRadius = readNumberAtLeast(overrides.turretRadius, mechanics.turretRadius, 1);
+  mechanics.turretProjectileDamage = readNumberAtLeast(overrides.turretProjectileDamage, mechanics.turretProjectileDamage, 0);
+  mechanics.turretProjectileCooldown = readNumberAtLeast(overrides.turretProjectileCooldown, mechanics.turretProjectileCooldown, 0.05);
+  mechanics.turretProjectileSpeed = readNumberAtLeast(overrides.turretProjectileSpeed, mechanics.turretProjectileSpeed, 1);
+  mechanics.turretProjectileRadius = readNumberAtLeast(overrides.turretProjectileRadius, mechanics.turretProjectileRadius, 1);
+  mechanics.turretProjectileLifetime = readNumberAtLeast(overrides.turretProjectileLifetime, mechanics.turretProjectileLifetime, 0.05);
+  return mechanics;
+}
+
 export function createRuntimeState(): BallRuntimeState {
   return {
     lifestealWindowStart: 0,
@@ -208,4 +262,8 @@ export function createRuntimeState(): BallRuntimeState {
 
 function isStatusEffectId(statusId: string): statusId is StatusEffectId {
   return statusId === "burn" || statusId === "poison" || statusId === "slow" || statusId === "vulnerable";
+}
+
+function readNumberAtLeast(value: number | undefined, fallback: number, min: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(min, value) : fallback;
 }

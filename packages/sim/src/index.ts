@@ -2,6 +2,7 @@ import { baseBallStats } from "@ball-brawl/content";
 import type { BallStats } from "@ball-brawl/shared";
 
 export { createStatsForBuild } from "./battle/build-stats";
+export { defaultProjectileMechanicsConfig, defaultTurretMechanicsConfig } from "./battle/build-mechanics";
 export { createBattle, DEFAULT_ARENA } from "./battle/create-battle";
 export { FIXED_DT, runBattle, stepBattle } from "./battle/step-battle";
 export { getSnapshot } from "./battle/snapshot";
