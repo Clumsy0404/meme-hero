@@ -107,6 +107,10 @@ export const emptySpecialMechanics: SpecialMechanics = {
   elbowWindow: 0,
   elbowDamageMultiplier: 1,
   elbowKnockbackMultiplier: 1,
+  elbowDashSpeedMultiplier: 1,
+  elbowDashTurnMultiplier: 1,
+  elbowHitboxRangeMultiplier: 0,
+  elbowHitboxRadiusMultiplier: 0,
   basketballCooldown: 0,
   basketballDamage: 0,
   basketballSpeed: 0,
@@ -227,6 +231,16 @@ export function createMechanicsForBuild(build: BuildConfig, overrides?: BattleBa
         special.elbowKnockbackMultiplier,
         specialConfig.elbowKnockbackMultiplier ?? special.elbowKnockbackMultiplier
       );
+      special.elbowDashSpeedMultiplier = Math.max(
+        special.elbowDashSpeedMultiplier,
+        specialConfig.elbowDashSpeedMultiplier ?? special.elbowDashSpeedMultiplier
+      );
+      special.elbowDashTurnMultiplier = Math.max(
+        special.elbowDashTurnMultiplier,
+        specialConfig.elbowDashTurnMultiplier ?? special.elbowDashTurnMultiplier
+      );
+      special.elbowHitboxRangeMultiplier = Math.max(special.elbowHitboxRangeMultiplier, specialConfig.elbowHitboxRangeMultiplier ?? 0);
+      special.elbowHitboxRadiusMultiplier = Math.max(special.elbowHitboxRadiusMultiplier, specialConfig.elbowHitboxRadiusMultiplier ?? 0);
       special.basketballCooldown = Math.max(special.basketballCooldown, specialConfig.basketballCooldown ?? 0);
       special.basketballDamage = Math.max(special.basketballDamage, specialConfig.basketballDamage ?? 0);
       special.basketballSpeed = Math.max(special.basketballSpeed, specialConfig.basketballSpeed ?? 0);
@@ -312,6 +326,8 @@ export function createRuntimeState(mechanics?: BallMechanics): BallRuntimeState 
     lastDamageSourceId: null,
     specialElbowCooldown: special?.elbowCooldown ?? 0,
     specialElbowWindowRemaining: 0,
+    specialElbowDirection: { x: 1, y: 0 },
+    specialElbowHitAvailable: false,
     specialBasketballCooldown: special?.basketballCooldown ?? 0,
     specialHajimiCooldown: special?.hajimiCooldown ?? 0,
     specialHajimiGuardRemaining: 0

@@ -500,17 +500,39 @@ describe("sim bootstrap", () => {
     );
     placeSeparatedMainBalls(world, 100, 380, 120);
 
-    stepBattle(world, 5, 0);
+    stepBattle(world, 10, 0);
 
     const blue = world.balls[0]!;
     expect(blue.runtime.specialElbowWindowRemaining).toBeCloseTo(2);
+    expect(blue.runtime.specialElbowHitAvailable).toBe(true);
     expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "elbow_ready")).toBe(true);
 
     stepBattle(world, 2, 0);
 
     expect(blue.runtime.specialElbowWindowRemaining).toBe(0);
-    expect(blue.runtime.specialElbowCooldown).toBeCloseTo(5);
+    expect(blue.runtime.specialElbowHitAvailable).toBe(false);
+    expect(blue.runtime.specialElbowCooldown).toBeCloseTo(10);
     expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "elbow_expire")).toBe(true);
+  });
+
+  it("dashes toward the enemy during special elbow strike windows", () => {
+    const world = createBattle(
+      makeMatch(["special_elbow_strike", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 480, height: 240 }
+    );
+    const [blue] = placeSeparatedMainBalls(world, 100, 380, 120);
+    blue.velocity = { x: 0, y: 0 };
+    blue.runtime.specialElbowCooldown = 0;
+    blue.runtime.specialElbowWindowRemaining = 2;
+    blue.runtime.specialElbowHitAvailable = true;
+
+    stepBattle(world, 1 / 60, 0);
+
+    expect(blue.velocity.x).toBeGreaterThan(0);
+    expect(Math.hypot(blue.velocity.x, blue.velocity.y)).toBeCloseTo(blue.stats.moveSpeed * 2);
+    const snapshot = getSnapshot(world);
+    expect(snapshot.balls[0]?.specialElbowRemaining).toBeGreaterThan(0);
+    expect(snapshot.balls[0]?.specialElbowRange).toBeGreaterThan(0);
   });
 
   it("amplifies collision damage with special elbow strike", () => {
@@ -521,14 +543,36 @@ describe("sim bootstrap", () => {
     const [blue, red] = placeOverlappingMainBalls(world);
     blue.runtime.specialElbowCooldown = 0;
     blue.runtime.specialElbowWindowRemaining = 2;
+    blue.runtime.specialElbowHitAvailable = true;
     red.stats.collisionDamage = 0;
     const hpBefore = red.hp;
 
     stepBattle(world, 1 / 60, 0);
 
     expect(hpBefore - red.hp).toBeCloseTo(12);
-    expect(blue.runtime.specialElbowWindowRemaining).toBe(0);
-    expect(blue.runtime.specialElbowCooldown).toBeCloseTo(5);
+    expect(blue.runtime.specialElbowWindowRemaining).toBeGreaterThan(0);
+    expect(blue.runtime.specialElbowHitAvailable).toBe(false);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "elbow_hit")).toBe(true);
+  });
+
+  it("hits with the special elbow hitbox before body contact", () => {
+    const world = createBattle(
+      makeMatch(["special_elbow_strike", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 360, height: 180 }
+    );
+    const [blue, red] = placeSeparatedMainBalls(world, 60, 180, 90);
+    blue.runtime.specialElbowCooldown = 0;
+    blue.runtime.specialElbowWindowRemaining = 2;
+    blue.runtime.specialElbowDirection = { x: 1, y: 0 };
+    blue.runtime.specialElbowHitAvailable = true;
+    red.stats.collisionDamage = 0;
+    const hpBefore = red.hp;
+
+    stepBattle(world, 1 / 60, 0);
+
+    expect(hpBefore - red.hp).toBeCloseTo(12);
+    expect(blue.runtime.specialElbowWindowRemaining).toBeGreaterThan(0);
+    expect(blue.runtime.specialElbowHitAvailable).toBe(false);
     expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "elbow_hit")).toBe(true);
   });
 

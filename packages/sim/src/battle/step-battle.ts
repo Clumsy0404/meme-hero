@@ -47,6 +47,7 @@ export function stepBattle(
   fireSpecialBasketballs(world);
   updateTurrets(world, dt);
   updateProjectiles(world, dt);
+  resolveSpecialElbowCollisions(world);
   resolveBallCollisions(world);
   processDeaths(world);
   checkBattleEnd(world);
@@ -465,7 +466,13 @@ function splitProjectile(world: BattleWorldState, owner: BallState, projectile: 
 function steerToward(ball: BallState, target: BallState, dt: number, chaseStrength: number): void {
   const currentDirection = normalize(ball.velocity, { x: ball.team === "blue" ? 1 : -1, y: 0 });
   const targetDirection = normalize(sub(target.position, ball.position), currentDirection);
-  const turn = clamp(chaseStrength * dt, 0, 1);
+  const elbowActive = isSpecialElbowActive(ball);
+  if (elbowActive) {
+    ball.runtime.specialElbowDirection = targetDirection;
+  }
+  const turnMultiplier = elbowActive ? Math.max(1, ball.mechanics.special.elbowDashTurnMultiplier) : 1;
+  const turnStrength = elbowActive ? Math.max(chaseStrength, DEFAULT_CHASE_STRENGTH) : chaseStrength;
+  const turn = clamp(turnStrength * turnMultiplier * dt, 0, 1);
   const nextDirection = normalize(lerp(currentDirection, targetDirection, turn), currentDirection);
   ball.velocity = scale(nextDirection, getEffectiveMoveSpeed(ball));
 }
@@ -521,6 +528,36 @@ function resolveBallCollisions(world: BattleWorldState): void {
         continue;
       }
       resolvePairCollision(world, a, b);
+    }
+  }
+}
+
+function resolveSpecialElbowCollisions(world: BattleWorldState): void {
+  for (const source of world.balls) {
+    if (!canSpecialElbowHit(source)) {
+      continue;
+    }
+
+    const hitbox = getSpecialElbowHitbox(source);
+    if (!hitbox) {
+      continue;
+    }
+
+    let nearestTarget: BallState | undefined;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    for (const target of world.balls) {
+      if (!target.alive || target.team === source.team || !canDamagePair(source, target)) {
+        continue;
+      }
+      const currentDistance = distancePointToSegment(target.position, hitbox.start, hitbox.end);
+      if (currentDistance <= target.stats.radius + hitbox.radius && currentDistance < nearestDistance) {
+        nearestTarget = target;
+        nearestDistance = currentDistance;
+      }
+    }
+
+    if (nearestTarget) {
+      applySpecialElbowHit(world, source, nearestTarget);
     }
   }
 }
@@ -618,12 +655,11 @@ function getSpecialCollisionAttack(
   damage: number
 ): { damage: number; knockbackMultiplier: number } {
   const { elbowCooldown, elbowDamageMultiplier, elbowKnockbackMultiplier } = source.mechanics.special;
-  if (source.role !== "main" || damage <= 0 || elbowCooldown <= 0 || source.runtime.specialElbowWindowRemaining <= 0) {
+  if (source.role !== "main" || damage <= 0 || elbowCooldown <= 0 || !canSpecialElbowHit(source)) {
     return { damage, knockbackMultiplier: 1 };
   }
 
-  source.runtime.specialElbowWindowRemaining = 0;
-  source.runtime.specialElbowCooldown = elbowCooldown;
+  source.runtime.specialElbowHitAvailable = false;
   world.events.push({
     type: "trait_triggered",
     tick: world.tick,
@@ -638,6 +674,25 @@ function getSpecialCollisionAttack(
     damage: damage * elbowDamageMultiplier,
     knockbackMultiplier: elbowKnockbackMultiplier
   };
+}
+
+function applySpecialElbowHit(world: BattleWorldState, source: BallState, target: BallState): void {
+  const attack = getSpecialCollisionAttack(world, source, getCollisionDamage(world, source));
+  const defense = applyHajimiGuard(world, target, attack.damage);
+  const damageToTarget = applyDamage(world, source, target, defense.damage, ["collision", "special"]);
+  applyOnHitStatuses(world, source, target);
+  applyLifesteal(world, source, damageToTarget);
+  applyReflect(world, target, source, damageToTarget);
+  triggerCollisionExplosion(world, source, { ...target.position });
+  source.collisionTimers[target.id] = source.stats.collisionCooldown;
+  target.collisionTimers[source.id] = target.stats.collisionCooldown;
+
+  const direction = normalize(sub(target.position, source.position), getSpecialElbowDirection(source));
+  target.velocity = scale(direction, target.stats.knockback * attack.knockbackMultiplier * defense.selfKnockbackMultiplier);
+  source.velocity =
+    defense.attackerKnockbackMultiplier > 1
+      ? scale(direction, -source.stats.knockback * defense.attackerKnockbackMultiplier)
+      : scale(direction, getEffectiveMoveSpeed(source) * 0.85);
 }
 
 function applyHajimiGuard(
@@ -834,7 +889,54 @@ function applyStatusEffect(
 }
 
 function getEffectiveMoveSpeed(ball: BallState): number {
-  return ball.stats.moveSpeed * getRuleMoveSpeedMultiplier(ball) * (1 - getMaxStatusValue(ball, "slowPercent", 0.85));
+  const elbowSpeedMultiplier = isSpecialElbowActive(ball) ? Math.max(1, ball.mechanics.special.elbowDashSpeedMultiplier) : 1;
+  return ball.stats.moveSpeed * getRuleMoveSpeedMultiplier(ball) * (1 - getMaxStatusValue(ball, "slowPercent", 0.85)) * elbowSpeedMultiplier;
+}
+
+function isSpecialElbowActive(ball: BallState): boolean {
+  return (
+    ball.alive &&
+    ball.role === "main" &&
+    ball.runtime.specialElbowWindowRemaining > 0 &&
+    ball.mechanics.special.elbowCooldown > 0 &&
+    ball.mechanics.special.elbowWindow > 0 &&
+    ball.mechanics.special.elbowDamageMultiplier > 1
+  );
+}
+
+function canSpecialElbowHit(ball: BallState): boolean {
+  return isSpecialElbowActive(ball) && ball.runtime.specialElbowHitAvailable;
+}
+
+function refreshSpecialElbowDirection(world: BattleWorldState, ball: BallState): void {
+  const target = findTarget(world, ball);
+  if (!target) {
+    return;
+  }
+  ball.runtime.specialElbowDirection = normalize(
+    sub(target.position, ball.position),
+    normalize(ball.velocity, { x: ball.team === "blue" ? 1 : -1, y: 0 })
+  );
+}
+
+function getSpecialElbowDirection(ball: BallState): Vec2 {
+  return normalize(ball.runtime.specialElbowDirection, normalize(ball.velocity, { x: ball.team === "blue" ? 1 : -1, y: 0 }));
+}
+
+function getSpecialElbowHitbox(ball: BallState): { start: Vec2; end: Vec2; radius: number } | undefined {
+  const { elbowHitboxRangeMultiplier, elbowHitboxRadiusMultiplier } = ball.mechanics.special;
+  const reach = ball.stats.radius * elbowHitboxRangeMultiplier;
+  const radius = ball.stats.radius * elbowHitboxRadiusMultiplier;
+  if (reach <= 0 || radius <= 0) {
+    return undefined;
+  }
+
+  const direction = getSpecialElbowDirection(ball);
+  return {
+    start: add(ball.position, scale(direction, ball.stats.radius * 0.35)),
+    end: add(ball.position, scale(direction, ball.stats.radius + reach)),
+    radius
+  };
 }
 
 function getVulnerablePercent(ball: BallState): number {
@@ -886,9 +988,11 @@ function updateSpecialElbow(world: BattleWorldState, ball: BallState, dt: number
   }
 
   if (ball.runtime.specialElbowWindowRemaining > 0) {
+    refreshSpecialElbowDirection(world, ball);
     const previousWindow = ball.runtime.specialElbowWindowRemaining;
     ball.runtime.specialElbowWindowRemaining = Math.max(0, previousWindow - dt);
     if (previousWindow > 0 && ball.runtime.specialElbowWindowRemaining <= 0) {
+      ball.runtime.specialElbowHitAvailable = false;
       ball.runtime.specialElbowCooldown = elbowCooldown;
       world.events.push({
         type: "trait_triggered",
@@ -905,7 +1009,9 @@ function updateSpecialElbow(world: BattleWorldState, ball: BallState, dt: number
   const previousCooldown = ball.runtime.specialElbowCooldown;
   ball.runtime.specialElbowCooldown = Math.max(0, previousCooldown - dt);
   if (previousCooldown > 0 && ball.runtime.specialElbowCooldown <= 0) {
+    refreshSpecialElbowDirection(world, ball);
     ball.runtime.specialElbowWindowRemaining = elbowWindow;
+    ball.runtime.specialElbowHitAvailable = true;
     world.events.push({
       type: "trait_triggered",
       tick: world.tick,
@@ -1337,6 +1443,8 @@ function createChildMechanics(mechanics: BallMechanics, role: "clone" | "split")
       ...mechanics.special,
       elbowCooldown: 0,
       elbowWindow: 0,
+      elbowHitboxRangeMultiplier: 0,
+      elbowHitboxRadiusMultiplier: 0,
       basketballCooldown: 0,
       basketballLimit: 0,
       hajimiCooldown: 0,
@@ -1557,6 +1665,18 @@ function remainingHp(world: BattleWorldState, team: Team): number {
 
 function midpoint(a: Vec2, b: Vec2): Vec2 {
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+function distancePointToSegment(point: Vec2, a: Vec2, b: Vec2): number {
+  const ab = sub(b, a);
+  const abLengthSq = lengthSq(ab);
+  if (abLengthSq <= 0.000001) {
+    return distance(point, a);
+  }
+
+  const ap = sub(point, a);
+  const t = clamp((ap.x * ab.x + ap.y * ab.y) / abLengthSq, 0, 1);
+  return distance(point, add(a, scale(ab, t)));
 }
 
 function rotate(v: Vec2, radians: number): Vec2 {

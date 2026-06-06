@@ -853,6 +853,7 @@ function BattleScreen({ snapshot, paused, speed, onBack, onRestart, onSpeedChang
           <div className="vbt-ent" key={combatant.id} style={arenaStyle(snapshot, combatant.x, combatant.y)}>
             <div className="vbt-entbox" style={{ "--ec": combatant.color } as React.CSSProperties}>
               <span className="vbt-nameTag">{combatant.name}</span>
+              {combatant.elbow ? <i className="vbt-elbow" style={elbowStyle(combatant)} /> : null}
               <CombatantBall combatant={combatant} />
               {combatant.statuses.map((status) => (
                 <i className="vbt-ball-ring" key={status.type} style={{ "--status": statusColors[status.type] } as React.CSSProperties} />
@@ -964,6 +965,20 @@ function FighterHud({ combatant, side }: { combatant: MobileBattleSnapshot["comb
 
 function getSpecialBallRenderSize(radius: number): number {
   return Math.max(34, Math.min(92, radius * 1.28));
+}
+
+function elbowStyle(combatant: MobileBattleSnapshot["combatants"][number]): React.CSSProperties {
+  const elbow = combatant.elbow;
+  if (!elbow) {
+    return {};
+  }
+
+  return {
+    "--angle": `${Math.atan2(elbow.dy, elbow.dx)}rad`,
+    "--elbowLen": `${Math.max(22, elbow.range * 0.72)}px`,
+    "--elbowWidth": `${Math.max(12, elbow.radius * 0.9)}px`,
+    "--elbowOffset": `${Math.max(16, combatant.r * 0.52)}px`
+  } as React.CSSProperties;
 }
 
 function ResultOverlay({ status }: { status: Exclude<MobileBattleStatus, "fighting"> }) {

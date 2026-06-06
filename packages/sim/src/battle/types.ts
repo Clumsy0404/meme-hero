@@ -129,6 +129,10 @@ export type SpecialMechanics = {
   elbowWindow: number;
   elbowDamageMultiplier: number;
   elbowKnockbackMultiplier: number;
+  elbowDashSpeedMultiplier: number;
+  elbowDashTurnMultiplier: number;
+  elbowHitboxRangeMultiplier: number;
+  elbowHitboxRadiusMultiplier: number;
   basketballCooldown: number;
   basketballDamage: number;
   basketballSpeed: number;
@@ -166,6 +170,8 @@ export type BallRuntimeState = {
   lastDamageSourceId: string | null;
   specialElbowCooldown: number;
   specialElbowWindowRemaining: number;
+  specialElbowDirection: Vec2;
+  specialElbowHitAvailable: boolean;
   specialBasketballCooldown: number;
   specialHajimiCooldown: number;
   specialHajimiGuardRemaining: number;
@@ -300,6 +306,10 @@ export type RenderBall = {
   timeGrowthStacks: number;
   reviveTriggered: boolean;
   specialElbowReady: boolean;
+  specialElbowRemaining: number;
+  specialElbowDirection: Vec2;
+  specialElbowRange: number;
+  specialElbowRadius: number;
   specialHajimiGuardRemaining: number;
   position: Vec2;
 };

@@ -25,6 +25,10 @@ export function getSnapshot(world: BattleWorldState): WorldSnapshot {
       timeGrowthStacks: ball.runtime.timeGrowthStacks,
       reviveTriggered: ball.runtime.reviveTriggered,
       specialElbowReady: ball.runtime.specialElbowWindowRemaining > 0,
+      specialElbowRemaining: ball.runtime.specialElbowWindowRemaining,
+      specialElbowDirection: { ...ball.runtime.specialElbowDirection },
+      specialElbowRange: ball.stats.radius * ball.mechanics.special.elbowHitboxRangeMultiplier,
+      specialElbowRadius: ball.stats.radius * ball.mechanics.special.elbowHitboxRadiusMultiplier,
       specialHajimiGuardRemaining: ball.runtime.specialHajimiGuardRemaining,
       position: { ...ball.position }
     })),

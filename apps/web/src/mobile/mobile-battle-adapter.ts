@@ -39,6 +39,14 @@ export type MobileCombatant = {
   build: TraitId[];
   statuses: Array<{ type: StatusEffectId; stacks: number }>;
   specialEffects: MobileSpecialEffect[];
+  elbow:
+    | {
+        dx: number;
+        dy: number;
+        range: number;
+        radius: number;
+      }
+    | undefined;
   iconSrc: string | undefined;
 };
 
@@ -112,6 +120,7 @@ export function toMobileBattleSnapshot(
             build: blueBuild.traits,
             statuses: blueMain.statuses.map((statusEffect) => ({ type: statusEffect.id, stacks: 1 })),
             specialEffects: getSpecialEffects(blueMain),
+            elbow: getSpecialElbow(blueMain),
             iconSrc: getSpecialTraitAsset(blueBuild.traits)?.ballSrc
           }
         : fallbackCombatant("me", blueBuild.name, teamColors.blue, blueBuild.traits),
@@ -130,6 +139,7 @@ export function toMobileBattleSnapshot(
             build: redBuild.traits,
             statuses: redMain.statuses.map((statusEffect) => ({ type: statusEffect.id, stacks: 1 })),
             specialEffects: getSpecialEffects(redMain),
+            elbow: getSpecialElbow(redMain),
             iconSrc: getSpecialTraitAsset(redBuild.traits)?.ballSrc
           }
         : fallbackCombatant("foe", opponent.name, opponent.color, redBuild.traits)
@@ -196,6 +206,7 @@ function fallbackCombatant(side: "me" | "foe", name: string, color: string, buil
     build,
     statuses: [],
     specialEffects: [],
+    elbow: undefined,
     iconSrc: getSpecialTraitAsset(build)?.ballSrc
   };
 }
@@ -209,6 +220,18 @@ function getSpecialEffects(ball: WorldSnapshot["balls"][number]): MobileSpecialE
     effects.push("hajimiGuard");
   }
   return effects;
+}
+
+function getSpecialElbow(ball: WorldSnapshot["balls"][number]): MobileCombatant["elbow"] {
+  if (ball.specialElbowRemaining <= 0 || ball.specialElbowRange <= 0 || ball.specialElbowRadius <= 0) {
+    return undefined;
+  }
+  return {
+    dx: ball.specialElbowDirection.x,
+    dy: ball.specialElbowDirection.y,
+    range: ball.specialElbowRange,
+    radius: ball.specialElbowRadius
+  };
 }
 
 function toOwner(team: Team): "me" | "foe" {
@@ -277,7 +300,7 @@ function eventToSfx(event: BattleEvent): MobileSfxKey | undefined {
   if (event.trigger === "basketball_hit" || event.trigger === "basketball_bounce") {
     return "special.bounce_basketball";
   }
-  if (event.trigger === "hajimi_guard_consume") {
+  if (event.trigger === "hajimi_guard_ready" || event.trigger === "hajimi_guard_consume") {
     return "special.hajimi_guard";
   }
   return undefined;

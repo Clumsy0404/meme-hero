@@ -4,6 +4,7 @@ dist/
 coverage/
 .vite/
 .dev-server.log
+.dev-server*.log
 .playwright-cli/
 output/
 .env

@@ -90,6 +90,10 @@ export type SpecialTraitConfig = {
   elbowWindow?: number;
   elbowDamageMultiplier?: number;
   elbowKnockbackMultiplier?: number;
+  elbowDashSpeedMultiplier?: number;
+  elbowDashTurnMultiplier?: number;
+  elbowHitboxRangeMultiplier?: number;
+  elbowHitboxRadiusMultiplier?: number;
   basketballCooldown?: number;
   basketballDamage?: number;
   basketballSpeed?: number;

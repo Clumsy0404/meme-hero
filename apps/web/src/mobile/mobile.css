@@ -1268,6 +1268,12 @@
   position: relative;
 }
 
+.vbt-entbox > .ball-sprite,
+.vbt-ball-img {
+  position: relative;
+  z-index: 2;
+}
+
 .vbt-ball-img {
   display: block;
   width: var(--bs);
@@ -1277,6 +1283,31 @@
   filter: drop-shadow(0 2px 0 #0008) drop-shadow(0 0 8px color-mix(in srgb, var(--ec) 52%, transparent));
   pointer-events: none;
   user-select: none;
+}
+
+.vbt-elbow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  width: var(--elbowLen);
+  height: var(--elbowWidth);
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 4px, #ffffff16 4px 5px),
+    linear-gradient(90deg, #050505 0 72%, #151515 72%);
+  border: 2px solid #000;
+  border-radius: 2px 7px 7px 2px;
+  box-shadow: 0 0 0 2px #ffffff18, 0 0 14px #ffd23f66;
+  transform: rotate(var(--angle)) translate(var(--elbowOffset), -50%);
+  transform-origin: 0 50%;
+  animation: vbtelbow 0.18s steps(2) infinite;
+}
+
+@keyframes vbtelbow {
+  50% {
+    filter: brightness(1.45);
+  }
 }
 
 .vbt-summon {
