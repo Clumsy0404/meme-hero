@@ -1,0 +1,21 @@
+{
+  "name": "@ball-brawl/balance",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "simulate": "tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ball-brawl/content": "workspace:*",
+    "@ball-brawl/shared": "workspace:*",
+    "@ball-brawl/sim": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.6"
+  }
+}

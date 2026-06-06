@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "pnpm --filter @ball-brawl/web dev",
     "build": "pnpm -r build",
+    "balance": "pnpm --filter @ball-brawl/balance simulate",
     "test": "pnpm -r test",
     "test:watch": "pnpm -r test:watch",
     "typecheck": "pnpm -r typecheck"

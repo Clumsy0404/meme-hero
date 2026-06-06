@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { TRAITS_PER_BUILD } from "@ball-brawl/shared";
 
-import { baseBallStats, traitDefinitions, validateBuildConfig } from "./index";
+import { baseBallStats, presetEnemies, traitDefinitions, validateBuildConfig } from "./index";
 
 describe("content bootstrap", () => {
   it("exposes base ball stats", () => {
@@ -20,6 +20,23 @@ describe("content bootstrap", () => {
     expect(traitDefinitions).toHaveLength(30);
     expect(traitDefinitions.filter((trait) => trait.mainType === "attribute")).toHaveLength(6);
     expect(traitDefinitions.every((trait) => trait.name.length > 0 && trait.description.length > 0)).toBe(true);
+  });
+
+  it("ships legal preset enemy builds", () => {
+    expect(presetEnemies).toHaveLength(6);
+    expect(new Set(presetEnemies.map((preset) => preset.id)).size).toBe(presetEnemies.length);
+
+    for (const preset of presetEnemies) {
+      const result = validateBuildConfig({
+        version: "0.1",
+        name: preset.name,
+        skin: "default_red",
+        baseModel: "default",
+        traits: preset.traits
+      });
+
+      expect(result.ok).toBe(true);
+    }
   });
 
   it("validates a legal four-trait build", () => {
