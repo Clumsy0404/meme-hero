@@ -11,6 +11,7 @@ import type {
   StatusMechanics,
   SummonMechanics
 } from "./types";
+import { mergeTraitNumericConfig } from "./trait-overrides";
 
 type ProjectileMechanicsConfig = Pick<ProjectileMechanics, "damage" | "cooldown" | "speed" | "radius" | "lifetime">;
 type TurretMechanicsConfig = Pick<
@@ -110,7 +111,8 @@ export function createMechanicsForBuild(build: BuildConfig, overrides?: BattleBa
 
   for (const traitId of build.traits) {
     const trait = getRequiredTraitDefinition(traitId);
-    const collisionConfig = trait.numeric.collision;
+    const numeric = mergeTraitNumericConfig(trait.id, trait.numeric, overrides);
+    const collisionConfig = numeric.collision;
     if (collisionConfig && trait.mainType === "collision") {
       collision.lifestealRatio = Math.max(collision.lifestealRatio, collisionConfig.lifestealRatio ?? 0);
       collision.healPerSecondLimit = Math.max(collision.healPerSecondLimit, collisionConfig.healPerSecondLimit ?? 0);
@@ -125,7 +127,7 @@ export function createMechanicsForBuild(build: BuildConfig, overrides?: BattleBa
       );
     }
 
-    const projectileConfig = trait.numeric.projectile;
+    const projectileConfig = numeric.projectile;
     if (projectileConfig && trait.mainType === "projectile") {
       projectile.enabled = true;
       projectile.damage *= projectileConfig.damageMultiplier ?? 1;
@@ -144,7 +146,7 @@ export function createMechanicsForBuild(build: BuildConfig, overrides?: BattleBa
       fireRateMultiplier *= projectileConfig.fireRateMultiplier ?? 1;
     }
 
-    const summonConfig = trait.numeric.summon;
+    const summonConfig = numeric.summon;
     if (summonConfig && trait.mainType === "summon") {
       summon.maxClones = Math.max(summon.maxClones, summonConfig.maxClones ?? 0);
       summon.cloneCooldown = Math.max(summon.cloneCooldown, summonConfig.cloneCooldown ?? 0);
@@ -161,7 +163,7 @@ export function createMechanicsForBuild(build: BuildConfig, overrides?: BattleBa
       summon.cloneDeathExplosionRadius = Math.max(summon.cloneDeathExplosionRadius, collisionConfig.explosionRadius ?? 0);
     }
 
-    const statusConfig = trait.numeric.status;
+    const statusConfig = numeric.status;
     if (statusConfig && trait.mainType === "status") {
       if (statusConfig.statusId === "shield") {
         status.shieldValue = Math.max(status.shieldValue, statusConfig.shieldValue ?? 0);
@@ -179,7 +181,7 @@ export function createMechanicsForBuild(build: BuildConfig, overrides?: BattleBa
       }
     }
 
-    const ruleConfig = trait.numeric.rule;
+    const ruleConfig = numeric.rule;
     if (ruleConfig && trait.mainType === "rule") {
       if (ruleConfig.trigger === "hp_below_30_percent") {
         rule.lowHpRageDuration = Math.max(rule.lowHpRageDuration, ruleConfig.duration ?? 0);

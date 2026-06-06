@@ -1,6 +1,8 @@
 import { baseBallStats, getRequiredTraitDefinition, validateBuildConfig } from "@ball-brawl/content";
 import type { BallStats, BattleBalanceOverrides, BuildConfig, StatKey, StatModifier } from "@ball-brawl/shared";
 
+import { mergeTraitNumericConfig } from "./trait-overrides";
+
 const statKeys: StatKey[] = [
   "maxHp",
   "radius",
@@ -31,7 +33,8 @@ export function createStatsForBuild(
   const buckets = createModifierBuckets();
   for (const traitId of build.traits) {
     const trait = getRequiredTraitDefinition(traitId);
-    for (const modifier of trait.numeric.statModifiers ?? []) {
+    const numeric = mergeTraitNumericConfig(trait.id, trait.numeric, overrides);
+    for (const modifier of numeric.statModifiers ?? []) {
       addModifier(buckets[modifier.stat], modifier);
     }
   }

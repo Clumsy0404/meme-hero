@@ -151,10 +151,13 @@ export type TurretBalanceOverrides = Partial<{
   turretProjectileLifetime: number;
 }>;
 
+export type TraitBalanceOverrides = Partial<Record<TraitId, TraitNumericConfig>>;
+
 export type BattleBalanceOverrides = {
   baseStats?: Partial<BallStats>;
   projectile?: ProjectileBalanceOverrides;
   turret?: TurretBalanceOverrides;
+  traits?: TraitBalanceOverrides;
 };
 
 export type BuildValidationIssueCode =

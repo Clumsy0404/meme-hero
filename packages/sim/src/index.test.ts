@@ -138,6 +138,29 @@ describe("sim bootstrap", () => {
     expect(stats.radius).toBe(60);
   });
 
+  it("applies trait stat modifier overrides", () => {
+    const stats = createStatsForBuild(
+      {
+        version: "0.1",
+        name: "Tuned Trait",
+        skin: "default_blue",
+        baseModel: "default",
+        traits: ["hp_boost", "speed_boost", "collision_boost"]
+      },
+      undefined,
+      {
+        traits: {
+          hp_boost: {
+            statModifiers: [{ stat: "maxHp", op: "percentAdd", value: 0.5 }]
+          }
+        }
+      }
+    );
+
+    expect(stats.maxHp).toBe(150);
+    expect(stats.moveSpeed).toBeCloseTo(180 * 1.15);
+  });
+
   it("keeps body collision damage for non-projectile builds", () => {
     const stats = createStatsForBuild({
       version: "0.1",
@@ -347,6 +370,37 @@ describe("sim bootstrap", () => {
     expect(projectile?.radius).toBe(18);
     expect(projectile?.lifetime).toBeCloseTo(2.2 - 1 / 60);
     expect(world.balls[0]?.runtime.projectileCooldown).toBeCloseTo(0.8);
+  });
+
+  it("applies trait projectile overrides to fired shots", () => {
+    const world = createBattle(
+      makeMatch(["pellet_barrage", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 480, height: 240 },
+      {
+        traits: {
+          pellet_barrage: {
+            projectile: {
+              damageMultiplier: 0.5,
+              extraProjectiles: 1,
+              spreadAngleDeg: 10,
+              fireRateMultiplier: 1
+            }
+          }
+        }
+      }
+    );
+    placeSeparatedMainBalls(world, 100, 380, 120);
+
+    stepBattle(world, 1 / 60, 0);
+    const fireEvent = world.events.find((event) => event.type === "trait_triggered" && event.trigger === "projectile_fire");
+
+    expect(world.projectiles).toHaveLength(2);
+    expect(world.projectiles.every((projectile) => projectile.damage === 1)).toBe(true);
+    if (!fireEvent || fireEvent.type !== "trait_triggered") {
+      throw new Error("Expected projectile fire trigger");
+    }
+    expect(fireEvent.value).toBe(2);
+    expect(world.balls[0]?.runtime.projectileCooldown).toBeCloseTo(1.1);
   });
 
   it("damages enemies with projectile hit events", () => {
