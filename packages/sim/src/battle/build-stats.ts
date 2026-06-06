@@ -72,7 +72,7 @@ function applyModifierBuckets(baseStats: BallStats, buckets: Record<StatKey, Mod
 function clampStats(stats: BallStats): BallStats {
   return {
     maxHp: Math.max(1, stats.maxHp),
-    radius: clamp(stats.radius, 10, 54),
+    radius: clamp(stats.radius, 20, 108),
     moveSpeed: Math.max(20, stats.moveSpeed),
     collisionDamage: Math.max(0, stats.collisionDamage),
     collisionCooldown: Math.max(0.12, stats.collisionCooldown),

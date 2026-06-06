@@ -7,6 +7,7 @@ import { baseBallStats, presetEnemies, traitDefinitions, validateBuildConfig } f
 describe("content bootstrap", () => {
   it("exposes base ball stats", () => {
     expect(baseBallStats.maxHp).toBe(100);
+    expect(baseBallStats.radius).toBe(48);
     expect(baseBallStats.collisionDamage).toBe(8);
   });
 

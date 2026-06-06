@@ -28,7 +28,7 @@ const baseProjectileMechanics: ProjectileMechanics = {
   damage: 4,
   cooldown: 1.1,
   speed: 340,
-  radius: 6,
+  radius: 12,
   lifetime: 3.2,
   extraProjectiles: 0,
   spreadAngleDeg: 0,
@@ -51,11 +51,11 @@ const emptySummonMechanics: SummonMechanics = {
   turretCooldown: 0,
   turretLifetime: 0,
   turretHp: 18,
-  turretRadius: 18,
+  turretRadius: 36,
   turretProjectileDamage: 3,
   turretProjectileCooldown: 1.8,
   turretProjectileSpeed: 280,
-  turretProjectileRadius: 5,
+  turretProjectileRadius: 10,
   turretProjectileLifetime: 3
 };
 

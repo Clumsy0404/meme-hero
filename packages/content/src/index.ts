@@ -13,7 +13,7 @@ export const contentVersion = "0.1";
 
 export const baseBallStats: BallStats = {
   maxHp: 100,
-  radius: 24,
+  radius: 48,
   moveSpeed: 180,
   collisionDamage: 8,
   collisionCooldown: 0.45,

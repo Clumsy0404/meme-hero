@@ -1045,7 +1045,7 @@ function createChildStats(
   return {
     ...baseStats,
     maxHp: Math.max(1, baseStats.maxHp * ratios.hpRatio),
-    radius: Math.max(10, baseStats.radius * ratios.radiusRatio),
+    radius: Math.max(20, baseStats.radius * ratios.radiusRatio),
     moveSpeed: Math.max(20, baseStats.moveSpeed * ratios.speedRatio),
     collisionDamage: Math.max(0, baseStats.collisionDamage * ratios.collisionDamageRatio),
     knockback: Math.max(0, baseStats.knockback * ratios.knockbackRatio),

@@ -263,9 +263,9 @@ describe("sim bootstrap", () => {
   it("fires a weak base projectile when a projectile trait is equipped", () => {
     const world = createBattle(
       makeMatch(["ranged_core", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
-      { id: "test", width: 240, height: 180 }
+      { id: "test", width: 480, height: 240 }
     );
-    placeSeparatedMainBalls(world, 60, 180);
+    placeSeparatedMainBalls(world, 100, 380, 120);
 
     stepBattle(world, 1 / 60, 0);
 
@@ -277,9 +277,9 @@ describe("sim bootstrap", () => {
   it("damages enemies with projectile hit events", () => {
     const world = createBattle(
       makeMatch(["ranged_core", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
-      { id: "test", width: 240, height: 180 }
+      { id: "test", width: 360, height: 240 }
     );
-    const [, red] = placeSeparatedMainBalls(world, 60, 120);
+    const [, red] = placeSeparatedMainBalls(world, 100, 225, 120);
 
     stepBattle(world, 1 / 60, 0);
     const damageEvent = world.events.find((event) => event.type === "damage" && event.tags.includes("projectile"));
@@ -295,9 +295,9 @@ describe("sim bootstrap", () => {
   it("fires three projectiles with pellet barrage", () => {
     const world = createBattle(
       makeMatch(["pellet_barrage", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
-      { id: "test", width: 240, height: 180 }
+      { id: "test", width: 480, height: 240 }
     );
-    placeSeparatedMainBalls(world, 60, 180);
+    placeSeparatedMainBalls(world, 100, 380, 120);
 
     stepBattle(world, 1 / 60, 0);
     const fireEvent = world.events.find((event) => event.type === "trait_triggered" && event.trigger === "projectile_fire");
@@ -312,9 +312,9 @@ describe("sim bootstrap", () => {
   it("keeps ricochet projectiles alive after a wall bounce", () => {
     const world = createBattle(
       makeMatch(["ricochet_shot", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
-      { id: "test", width: 180, height: 120 }
+      { id: "test", width: 420, height: 240 }
     );
-    placeSeparatedMainBalls(world, 60, 140, 60);
+    placeSeparatedMainBalls(world, 100, 320, 120);
 
     stepBattle(world, 1 / 60, 0);
     const projectile = world.projectiles[0];
@@ -334,9 +334,9 @@ describe("sim bootstrap", () => {
   it("keeps pierce projectiles after the first hit", () => {
     const world = createBattle(
       makeMatch(["pierce_shot", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
-      { id: "test", width: 240, height: 180 }
+      { id: "test", width: 360, height: 240 }
     );
-    const [, red] = placeSeparatedMainBalls(world, 60, 120);
+    const [, red] = placeSeparatedMainBalls(world, 100, 225, 120);
 
     stepBattle(world, 1 / 60, 0);
 
@@ -348,9 +348,9 @@ describe("sim bootstrap", () => {
   it("splits projectiles into child shots on hit", () => {
     const world = createBattle(
       makeMatch(["split_shot", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
-      { id: "test", width: 240, height: 180 }
+      { id: "test", width: 360, height: 240 }
     );
-    placeSeparatedMainBalls(world, 60, 120);
+    placeSeparatedMainBalls(world, 100, 225, 120);
 
     stepBattle(world, 1 / 60, 0);
     const splitEvent = world.events.find((event) => event.type === "trait_triggered" && event.traitId === "split_shot");
@@ -620,9 +620,9 @@ describe("sim bootstrap", () => {
   it("includes projectiles in render snapshots", () => {
     const world = createBattle(
       makeMatch(["ranged_core", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
-      { id: "test", width: 240, height: 180 }
+      { id: "test", width: 480, height: 240 }
     );
-    placeSeparatedMainBalls(world, 60, 180);
+    placeSeparatedMainBalls(world, 100, 380, 120);
 
     stepBattle(world, 1 / 60, 0);
     const snapshot = getSnapshot(world);
