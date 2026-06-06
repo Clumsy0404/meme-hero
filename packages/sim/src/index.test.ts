@@ -295,6 +295,7 @@ describe("sim bootstrap", () => {
 
     expect(world.projectiles).toHaveLength(1);
     expect(world.projectiles[0]?.team).toBe("blue");
+    expect(Math.hypot(world.projectiles[0]!.velocity.x, world.projectiles[0]!.velocity.y)).toBeCloseTo(280);
     expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "projectile_fire")).toBe(true);
   });
 
@@ -331,6 +332,7 @@ describe("sim bootstrap", () => {
       throw new Error("Expected projectile fire trigger");
     }
     expect(fireEvent.value).toBe(3);
+    expect(world.projectiles.every((projectile) => projectile.damage === 1.4)).toBe(true);
   });
 
   it("keeps ricochet projectiles alive after a wall bounce", () => {

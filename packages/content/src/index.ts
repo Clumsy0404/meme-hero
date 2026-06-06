@@ -251,8 +251,8 @@ export const traitDefinitions: TraitDefinition[] = [
     mainType: "projectile",
     tags: ["projectile", "scatter"],
     repeatRule: { kind: "unique" },
-    description: "额外发射 2 枚散射子弹，但弹道更分散。",
-    numeric: { projectile: { extraProjectiles: 2, spreadAngleDeg: 32, fireRateMultiplier: 0.85 } },
+    description: "额外发射 2 枚散射子弹，但单发伤害降低且弹道更分散。",
+    numeric: { projectile: { damageMultiplier: 0.7, extraProjectiles: 2, spreadAngleDeg: 32, fireRateMultiplier: 0.85 } },
     behaviorKeys: ["projectile_enable", "projectile_scatter"]
   },
   {

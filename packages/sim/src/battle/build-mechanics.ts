@@ -27,7 +27,7 @@ const baseProjectileMechanics: ProjectileMechanics = {
   enabled: false,
   damage: 2,
   cooldown: 1.1,
-  speed: 340,
+  speed: 280,
   radius: 12,
   lifetime: 3.2,
   extraProjectiles: 0,
