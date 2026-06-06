@@ -1,6 +1,20 @@
 import { baseBallStats } from "@ball-brawl/content";
 import type { BallStats } from "@ball-brawl/shared";
 
+export { createBattle, DEFAULT_ARENA } from "./battle/create-battle";
+export { FIXED_DT, runBattle, stepBattle } from "./battle/step-battle";
+export { getSnapshot } from "./battle/snapshot";
+export type {
+  ArenaState,
+  BallRole,
+  BallState,
+  BattleEvent,
+  BattleResult,
+  BattleWorldState,
+  WorldSnapshot
+} from "./battle/types";
+export { SeededRng } from "./rng/seeded-rng";
+
 export const simVersion = "0.1";
 
 export function createBaseStats(): BallStats {
