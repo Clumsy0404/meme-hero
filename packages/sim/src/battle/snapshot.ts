@@ -14,6 +14,12 @@ export function getSnapshot(world: BattleWorldState): WorldSnapshot {
       maxHp: ball.stats.maxHp,
       radius: ball.stats.radius,
       wallChargeStacks: ball.runtime.wallChargeStacks,
+      statuses: ball.runtime.statuses.map((status) => ({
+        id: status.id,
+        remaining: status.remaining
+      })),
+      shield: ball.runtime.shield,
+      maxShield: ball.mechanics.status.shieldValue,
       position: { ...ball.position }
     })),
     projectiles: world.projectiles.map((projectile) => ({

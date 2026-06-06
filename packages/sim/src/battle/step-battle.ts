@@ -2,7 +2,16 @@ import type { BallStats, Team, Vec2 } from "@ball-brawl/shared";
 
 import { add, clamp, distance, length, lengthSq, lerp, normalize, scale, sub } from "../math/vector";
 import { createRuntimeState } from "./build-mechanics";
-import type { BallMechanics, BallState, BattleResult, BattleWorldState, DamageTag, ProjectileState, TurretState } from "./types";
+import type {
+  BallMechanics,
+  BallState,
+  BattleResult,
+  BattleWorldState,
+  DamageTag,
+  ProjectileState,
+  StatusApplicationMechanics,
+  TurretState
+} from "./types";
 
 export const FIXED_DT = 1 / 60;
 export const DEFAULT_CHASE_STRENGTH = 0.75;
@@ -22,6 +31,13 @@ export function stepBattle(
   world.time += dt;
 
   updateCollisionTimers(world, dt);
+  updateStatuses(world, dt);
+  processDeaths(world);
+  checkBattleEnd(world);
+  if (world.result) {
+    return world;
+  }
+
   updateBalls(world, dt, chaseStrength);
   updateSummons(world);
   fireProjectiles(world);
@@ -267,11 +283,8 @@ function updateProjectiles(world: BattleWorldState, dt: number): void {
         continue;
       }
 
-      const dealtDamage = applyDamage(world, owner, target, projectile.damage, ["projectile"]);
-      if (dealtDamage <= 0) {
-        continue;
-      }
-
+      applyDamage(world, owner, target, projectile.damage, ["projectile"]);
+      applyOnHitStatuses(world, owner, target);
       projectile.hitBallIds.push(target.id);
       if (projectile.splitCount > 0 && !projectile.isChild) {
         spawnedProjectiles.push(...splitProjectile(world, owner, projectile));
@@ -396,7 +409,7 @@ function steerToward(ball: BallState, target: BallState, dt: number, chaseStreng
   const targetDirection = normalize(sub(target.position, ball.position), currentDirection);
   const turn = clamp(chaseStrength * dt, 0, 1);
   const nextDirection = normalize(lerp(currentDirection, targetDirection, turn), currentDirection);
-  ball.velocity = scale(nextDirection, ball.stats.moveSpeed);
+  ball.velocity = scale(nextDirection, getEffectiveMoveSpeed(ball));
 }
 
 function handleWallBounce(world: BattleWorldState, ball: BallState): void {
@@ -476,6 +489,8 @@ function resolvePairCollision(world: BattleWorldState, a: BallState, b: BallStat
   if (canDamagePair(a, b)) {
     const damageToB = applyDamage(world, a, b, getCollisionDamage(world, a), ["collision"]);
     const damageToA = applyDamage(world, b, a, getCollisionDamage(world, b), ["collision"]);
+    applyOnHitStatuses(world, a, b);
+    applyOnHitStatuses(world, b, a);
     applyLifesteal(world, a, damageToB);
     applyLifesteal(world, b, damageToA);
     applyReflect(world, b, a, damageToB);
@@ -529,7 +544,7 @@ function getCollisionDamage(world: BattleWorldState, source: BallState): number 
 
 function applyDamage(
   world: BattleWorldState,
-  source: BallState,
+  source: BallState | undefined,
   target: BallState,
   amount: number,
   tags: DamageTag[]
@@ -537,7 +552,10 @@ function applyDamage(
   if (!target.alive) {
     return 0;
   }
-  const finalAmount = Math.max(0, amount * (1 - clamp(target.stats.damageReduction, 0, 0.9)));
+  const vulnerableMultiplier = 1 + getVulnerablePercent(target);
+  const reducedAmount = Math.max(0, amount * vulnerableMultiplier * (1 - clamp(target.stats.damageReduction, 0, 0.9)));
+  const absorbedAmount = absorbShield(world, target, reducedAmount);
+  const finalAmount = Math.max(0, reducedAmount - absorbedAmount);
   if (finalAmount <= 0) {
     return 0;
   }
@@ -545,7 +563,7 @@ function applyDamage(
   world.events.push({
     type: "damage",
     tick: world.tick,
-    sourceId: source.id,
+    ...(source ? { sourceId: source.id } : {}),
     targetId: target.id,
     amount: finalAmount,
     tags,
@@ -556,6 +574,152 @@ function applyDamage(
     target.runtime.deathDamageTags = tags;
   }
   return finalAmount;
+}
+
+function updateStatuses(world: BattleWorldState, dt: number): void {
+  for (const ball of world.balls) {
+    if (!ball.alive) {
+      continue;
+    }
+
+    updateShieldCycle(world, ball, dt);
+
+    const activeStatuses: BallState["runtime"]["statuses"] = [];
+    for (const status of ball.runtime.statuses) {
+      if (status.remaining <= 0) {
+        continue;
+      }
+
+      if (status.tickDamage > 0) {
+        const source = world.balls.find((candidate) => candidate.id === status.sourceId);
+        applyDamage(world, source, ball, status.tickDamage * dt, ["dot"]);
+      }
+
+      status.remaining -= dt;
+      if (status.remaining > 0 && ball.alive) {
+        activeStatuses.push(status);
+      }
+      if (!ball.alive) {
+        break;
+      }
+    }
+
+    ball.runtime.statuses = activeStatuses;
+  }
+}
+
+function updateShieldCycle(world: BattleWorldState, ball: BallState, dt: number): void {
+  const { shieldValue, shieldCooldown } = ball.mechanics.status;
+  if (shieldValue <= 0 || shieldCooldown <= 0) {
+    return;
+  }
+
+  ball.runtime.shieldCooldown = Math.max(0, ball.runtime.shieldCooldown - dt);
+  if (ball.runtime.shieldCooldown > 0) {
+    return;
+  }
+
+  const previousShield = ball.runtime.shield;
+  ball.runtime.shield = Math.max(ball.runtime.shield, shieldValue);
+  ball.runtime.shieldCooldown = shieldCooldown;
+
+  if (ball.runtime.shield > previousShield) {
+    world.events.push({
+      type: "trait_triggered",
+      tick: world.tick,
+      ballId: ball.id,
+      traitId: "shield_cycle",
+      trigger: "shield_refresh",
+      position: { ...ball.position },
+      value: ball.runtime.shield
+    });
+  }
+}
+
+function absorbShield(world: BattleWorldState, target: BallState, amount: number): number {
+  if (target.runtime.shield <= 0 || amount <= 0) {
+    return 0;
+  }
+
+  const absorbed = Math.min(target.runtime.shield, amount);
+  target.runtime.shield -= absorbed;
+  world.events.push({
+    type: "trait_triggered",
+    tick: world.tick,
+    ballId: target.id,
+    traitId: "shield_cycle",
+    trigger: "shield_absorb",
+    position: { ...target.position },
+    value: absorbed
+  });
+  return absorbed;
+}
+
+function applyOnHitStatuses(world: BattleWorldState, source: BallState, target: BallState): void {
+  if (!target.alive || source.mechanics.status.onHit.length === 0) {
+    return;
+  }
+
+  for (const status of source.mechanics.status.onHit) {
+    applyStatusEffect(world, source, target, status);
+  }
+}
+
+function applyStatusEffect(
+  world: BattleWorldState,
+  source: BallState,
+  target: BallState,
+  status: StatusApplicationMechanics
+): void {
+  if (status.duration <= 0 || world.rng.next() > clamp(status.chance, 0, 1)) {
+    return;
+  }
+
+  const existing = target.runtime.statuses.find((activeStatus) => activeStatus.id === status.statusId);
+  if (existing) {
+    existing.traitId = status.traitId;
+    existing.sourceId = source.id;
+    existing.remaining = Math.max(existing.remaining, status.duration);
+    existing.tickDamage = Math.max(existing.tickDamage, status.tickDamage);
+    existing.slowPercent = Math.max(existing.slowPercent, status.slowPercent);
+    existing.vulnerablePercent = Math.max(existing.vulnerablePercent, status.vulnerablePercent);
+  } else {
+    target.runtime.statuses.push({
+      id: status.statusId,
+      traitId: status.traitId,
+      sourceId: source.id,
+      remaining: status.duration,
+      tickDamage: status.tickDamage,
+      slowPercent: status.slowPercent,
+      vulnerablePercent: status.vulnerablePercent
+    });
+  }
+
+  world.events.push({
+    type: "trait_triggered",
+    tick: world.tick,
+    ballId: source.id,
+    traitId: status.traitId,
+    trigger: "status_apply",
+    position: { ...target.position },
+    value: status.duration
+  });
+}
+
+function getEffectiveMoveSpeed(ball: BallState): number {
+  return ball.stats.moveSpeed * (1 - getMaxStatusValue(ball, "slowPercent", 0.85));
+}
+
+function getVulnerablePercent(ball: BallState): number {
+  return getMaxStatusValue(ball, "vulnerablePercent", 1);
+}
+
+function getMaxStatusValue(ball: BallState, key: "slowPercent" | "vulnerablePercent", maxValue: number): number {
+  return clamp(
+    ball.runtime.statuses.reduce((highest, status) => Math.max(highest, status[key]), 0),
+    0,
+    maxValue
+  );
 }
 
 function applyHeal(world: BattleWorldState, source: BallState, target: BallState, amount: number): number {
@@ -777,7 +941,7 @@ function createChildBall(
     alive: true,
     hp: stats.maxHp,
     stats,
-    mechanics: createChildMechanics(owner.mechanics),
+    mechanics: createChildMechanics(owner.mechanics, role),
     runtime: createRuntimeState(),
     position,
     velocity: scale(direction, stats.moveSpeed),
@@ -808,7 +972,7 @@ function createChildStats(
   };
 }
 
-function createChildMechanics(mechanics: BallMechanics): BallMechanics {
+function createChildMechanics(mechanics: BallMechanics, role: "clone" | "split"): BallMechanics {
   return {
     collision: { ...mechanics.collision },
     projectile: { ...mechanics.projectile, enabled: false },
@@ -819,6 +983,12 @@ function createChildMechanics(mechanics: BallMechanics): BallMechanics {
       splitCount: 0,
       turretLimit: 0,
       turretCooldown: 0
+    },
+    status: {
+      ...mechanics.status,
+      onHit: mechanics.status.onHit.map((status) => ({ ...status })),
+      shieldValue: role === "split" ? mechanics.status.shieldValue : 0,
+      shieldCooldown: role === "split" ? mechanics.status.shieldCooldown : 0
     }
   };
 }

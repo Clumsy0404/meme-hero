@@ -455,6 +455,91 @@ describe("sim bootstrap", () => {
     expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "turret_fire")).toBe(true);
   });
 
+  it("applies on-hit status payloads and resolves dot damage", () => {
+    const world = createBattle(
+      makeMatch(["burn_payload", "poison_payload", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 240, height: 180 }
+    );
+    const [blue, red] = placeOverlappingMainBalls(world);
+    for (const status of blue.mechanics.status.onHit) {
+      status.chance = 1;
+    }
+    red.stats.collisionDamage = 0;
+
+    stepBattle(world, 1 / 60, 0);
+
+    expect(red.runtime.statuses.map((status) => status.id).sort()).toEqual(["burn", "poison"]);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "status_apply")).toBe(true);
+
+    blue.position = { x: 60, y: 90 };
+    red.position = { x: 180, y: 90 };
+    blue.velocity = { x: 0, y: 0 };
+    red.velocity = { x: 0, y: 0 };
+    const hpAfterHit = red.hp;
+
+    stepBattle(world, 1, 0);
+
+    expect(red.hp).toBeCloseTo(hpAfterHit - 3.2);
+    expect(world.events.some((event) => event.type === "damage" && event.tags.includes("dot"))).toBe(true);
+  });
+
+  it("slows target movement while the slow status is active", () => {
+    const world = createBattle(
+      makeMatch(["slow_payload", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 240, height: 180 }
+    );
+    const [blue, red] = placeOverlappingMainBalls(world);
+    blue.mechanics.status.onHit[0]!.chance = 1;
+    red.stats.collisionDamage = 0;
+
+    stepBattle(world, 1 / 60, 0);
+    blue.position = { x: 60, y: 90 };
+    red.position = { x: 180, y: 90 };
+    blue.velocity = { x: 0, y: 0 };
+    red.velocity = { x: 0, y: 0 };
+
+    stepBattle(world, 1 / 60, 1);
+
+    expect(Math.hypot(red.velocity.x, red.velocity.y)).toBeCloseTo(red.stats.moveSpeed * 0.72);
+  });
+
+  it("amplifies incoming damage while vulnerable", () => {
+    const world = createBattle(makeMatch(hpStackTraits, hpStackTraits), { id: "test", width: 240, height: 180 });
+    const [blue, red] = placeOverlappingMainBalls(world);
+    red.stats.collisionDamage = 0;
+    red.runtime.statuses.push({
+      id: "vulnerable",
+      traitId: "vulnerable_payload",
+      sourceId: blue.id,
+      remaining: 3,
+      tickDamage: 0,
+      slowPercent: 0,
+      vulnerablePercent: 0.18
+    });
+
+    const hpBefore = red.hp;
+    stepBattle(world, 1 / 60, 0);
+
+    expect(hpBefore - red.hp).toBeCloseTo(8 * 1.18);
+  });
+
+  it("refreshes periodic shields and absorbs incoming damage", () => {
+    const world = createBattle(
+      makeMatch(hpStackTraits, ["shield_cycle", "hp_boost", "hp_boost", "hp_boost"]),
+      { id: "test", width: 240, height: 180 }
+    );
+    const [, red] = placeOverlappingMainBalls(world);
+    red.stats.collisionDamage = 0;
+    const hpBefore = red.hp;
+
+    stepBattle(world, 1 / 60, 0);
+
+    expect(red.hp).toBeCloseTo(hpBefore);
+    expect(red.runtime.shield).toBeCloseTo(6);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "shield_refresh")).toBe(true);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "shield_absorb")).toBe(true);
+  });
+
   it("returns render snapshots without exposing the rng", () => {
     const world = createBattle(matchConfig);
     stepBattle(world);
@@ -499,5 +584,30 @@ describe("sim bootstrap", () => {
       id: world.turrets[0]?.id,
       team: "blue"
     });
+  });
+
+  it("includes active statuses and shields in render snapshots", () => {
+    const world = createBattle(
+      makeMatch(["burn_payload", "hp_boost", "hp_boost", "hp_boost"], ["shield_cycle", "hp_boost", "hp_boost", "hp_boost"]),
+      { id: "test", width: 240, height: 180 }
+    );
+    const [blue, red] = placeSeparatedMainBalls(world, 60, 180);
+    red.runtime.statuses.push({
+      id: "burn",
+      traitId: "burn_payload",
+      sourceId: blue.id,
+      remaining: 2,
+      tickDamage: 2,
+      slowPercent: 0,
+      vulnerablePercent: 0
+    });
+    red.runtime.shield = 5;
+
+    const snapshot = getSnapshot(world);
+    const redSnapshot = snapshot.balls.find((ball) => ball.id === red.id);
+
+    expect(redSnapshot?.statuses).toEqual([{ id: "burn", remaining: 2 }]);
+    expect(redSnapshot?.shield).toBe(5);
+    expect(redSnapshot?.maxShield).toBe(14);
   });
 });

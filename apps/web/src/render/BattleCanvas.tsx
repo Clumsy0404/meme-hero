@@ -24,6 +24,13 @@ const ballColors: Record<Team, number> = {
   red: 0xd12b35
 };
 
+const statusColors: Record<string, number> = {
+  burn: 0xfb923c,
+  poison: 0x86efac,
+  slow: 0x60a5fa,
+  vulnerable: 0xf472b6
+};
+
 export function BattleCanvas({ match, restartToken, onSnapshot }: BattleCanvasProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
 
@@ -171,12 +178,30 @@ function drawBalls(graphics: Graphics, snapshot: WorldSnapshot): void {
       color: hpRatio > 0.35 ? 0x6ee7b7 : 0xfbbf24,
       width: 4
     });
+    if (ball.shield > 0 && ball.maxShield > 0) {
+      const shieldRatio = Math.min(1, ball.shield / ball.maxShield);
+      graphics.circle(x, y, radius + 8).stroke({
+        color: 0x93c5fd,
+        width: 2 + shieldRatio * 3,
+        alpha: 0.48 + shieldRatio * 0.32
+      });
+    }
     if (ball.wallChargeStacks > 0) {
       graphics.circle(x, y, radius + 9 + ball.wallChargeStacks * 2).stroke({
         color: 0x67e8f9,
         width: 2 + ball.wallChargeStacks,
         alpha: 0.72
       });
+    }
+    if (ball.statuses.length > 0) {
+      const dotRadius = Math.max(4, radius * 0.14);
+      const totalWidth = (ball.statuses.length - 1) * dotRadius * 2.6;
+      for (const [index, status] of ball.statuses.entries()) {
+        const dotX = x - totalWidth / 2 + index * dotRadius * 2.6;
+        const dotY = y - radius - 12;
+        graphics.circle(dotX, dotY, dotRadius + 2).fill({ color: 0x090b10, alpha: 0.82 });
+        graphics.circle(dotX, dotY, dotRadius).fill(statusColors[status.id] ?? 0xf8fafc);
+      }
     }
   }
 }
@@ -223,9 +248,14 @@ function drawEvents(graphics: Graphics, events: BattleEvent[]): void {
     if (event.type === "damage") {
       const isExplosion = event.tags.includes("explosion");
       const isReflect = event.tags.includes("reflect");
+      const isDot = event.tags.includes("dot");
       graphics
         .circle(event.position.x * arenaScale, event.position.y * arenaScale, (isExplosion ? 28 : 12) + event.amount * 1.2)
-        .stroke({ color: isExplosion ? 0xfb923c : isReflect ? 0xf472b6 : 0xfff06a, width: isExplosion ? 3 : 2, alpha: 0.42 });
+        .stroke({
+          color: isExplosion ? 0xfb923c : isReflect ? 0xf472b6 : isDot ? 0x86efac : 0xfff06a,
+          width: isExplosion ? 3 : 2,
+          alpha: 0.42
+        });
     }
     if (event.type === "heal") {
       graphics
@@ -233,10 +263,33 @@ function drawEvents(graphics: Graphics, events: BattleEvent[]): void {
         .stroke({ color: 0x6ee7b7, width: 2, alpha: 0.62 });
     }
     if (event.type === "trait_triggered") {
-      const color = event.traitId === "collision_burst" ? 0xfb923c : event.traitId === "spike_reflect" ? 0xf472b6 : 0x67e8f9;
+      const color = getTraitEventColor(event.traitId, event.trigger);
       graphics
         .circle(event.position.x * arenaScale, event.position.y * arenaScale, 22 + (event.value ?? 1) * 2)
         .stroke({ color, width: 2, alpha: 0.5 });
     }
   }
+}
+
+function getTraitEventColor(traitId: string, trigger: string): number {
+  if (trigger === "status_apply") {
+    return (
+      {
+        burn_payload: statusColors.burn,
+        poison_payload: statusColors.poison,
+        slow_payload: statusColors.slow,
+        vulnerable_payload: statusColors.vulnerable
+      }[traitId] ?? 0xa78bfa
+    );
+  }
+  if (trigger === "shield_refresh" || trigger === "shield_absorb") {
+    return 0x93c5fd;
+  }
+  if (traitId === "collision_burst") {
+    return 0xfb923c;
+  }
+  if (traitId === "spike_reflect") {
+    return 0xf472b6;
+  }
+  return 0x67e8f9;
 }

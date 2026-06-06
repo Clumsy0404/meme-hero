@@ -1,7 +1,7 @@
 import type { BuildConfig, MatchConfig, TraitId } from "@ball-brawl/shared";
 
-export const defaultBlueTraits: TraitId[] = ["clone_spawn", "clone_bomb", "auto_turret", "hp_boost"];
-export const defaultRedTraits: TraitId[] = ["death_split", "giant_body", "collision_boost", "wall_charge"];
+export const defaultBlueTraits: TraitId[] = ["burn_payload", "slow_payload", "ranged_core", "hp_boost"];
+export const defaultRedTraits: TraitId[] = ["shield_cycle", "vulnerable_payload", "giant_body", "collision_boost"];
 
 export function createBuildConfig(name: string, skin: string, traits: TraitId[]): BuildConfig {
   return {

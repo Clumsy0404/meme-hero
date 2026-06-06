@@ -29,6 +29,7 @@ export type BallMechanics = {
   collision: CollisionMechanics;
   projectile: ProjectileMechanics;
   summon: SummonMechanics;
+  status: StatusMechanics;
 };
 
 export type CollisionMechanics = {
@@ -78,6 +79,34 @@ export type SummonMechanics = {
   turretProjectileLifetime: number;
 };
 
+export type StatusEffectId = "burn" | "poison" | "slow" | "vulnerable";
+
+export type StatusApplicationMechanics = {
+  traitId: string;
+  statusId: StatusEffectId;
+  chance: number;
+  duration: number;
+  tickDamage: number;
+  slowPercent: number;
+  vulnerablePercent: number;
+};
+
+export type StatusMechanics = {
+  onHit: StatusApplicationMechanics[];
+  shieldValue: number;
+  shieldCooldown: number;
+};
+
+export type ActiveStatusEffect = {
+  id: StatusEffectId;
+  traitId: string;
+  sourceId: string;
+  remaining: number;
+  tickDamage: number;
+  slowPercent: number;
+  vulnerablePercent: number;
+};
+
 export type BallRuntimeState = {
   lifestealWindowStart: number;
   lifestealHealedInWindow: number;
@@ -89,6 +118,9 @@ export type BallRuntimeState = {
   deathSplitTriggered: boolean;
   deathHandled: boolean;
   deathDamageTags: DamageTag[];
+  statuses: ActiveStatusEffect[];
+  shield: number;
+  shieldCooldown: number;
 };
 
 export type DamageTag = "collision" | "projectile" | "dot" | "explosion" | "reflect";
@@ -209,7 +241,15 @@ export type RenderBall = {
   maxHp: number;
   radius: number;
   wallChargeStacks: number;
+  statuses: RenderStatusEffect[];
+  shield: number;
+  maxShield: number;
   position: Vec2;
+};
+
+export type RenderStatusEffect = {
+  id: StatusEffectId;
+  remaining: number;
 };
 
 export type RenderProjectile = {

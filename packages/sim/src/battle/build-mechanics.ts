@@ -1,7 +1,15 @@
 import { getRequiredTraitDefinition } from "@ball-brawl/content";
 import type { BuildConfig } from "@ball-brawl/shared";
 
-import type { BallMechanics, BallRuntimeState, CollisionMechanics, ProjectileMechanics, SummonMechanics } from "./types";
+import type {
+  BallMechanics,
+  BallRuntimeState,
+  CollisionMechanics,
+  ProjectileMechanics,
+  StatusEffectId,
+  StatusMechanics,
+  SummonMechanics
+} from "./types";
 
 const emptyCollisionMechanics: CollisionMechanics = {
   lifestealRatio: 0,
@@ -50,10 +58,17 @@ const emptySummonMechanics: SummonMechanics = {
   turretProjectileLifetime: 3
 };
 
+const emptyStatusMechanics: StatusMechanics = {
+  onHit: [],
+  shieldValue: 0,
+  shieldCooldown: 0
+};
+
 export function createMechanicsForBuild(build: BuildConfig): BallMechanics {
   const collision = { ...emptyCollisionMechanics };
   const projectile = { ...baseProjectileMechanics };
   const summon = { ...emptySummonMechanics };
+  const status: StatusMechanics = { ...emptyStatusMechanics, onHit: [] };
   let fireRateMultiplier = 1;
 
   for (const traitId of build.traits) {
@@ -108,11 +123,29 @@ export function createMechanicsForBuild(build: BuildConfig): BallMechanics {
       summon.cloneDeathExplosionDamage = Math.max(summon.cloneDeathExplosionDamage, collisionConfig.explosionDamage ?? 0);
       summon.cloneDeathExplosionRadius = Math.max(summon.cloneDeathExplosionRadius, collisionConfig.explosionRadius ?? 0);
     }
+
+    const statusConfig = trait.numeric.status;
+    if (statusConfig && trait.mainType === "status") {
+      if (statusConfig.statusId === "shield") {
+        status.shieldValue = Math.max(status.shieldValue, statusConfig.shieldValue ?? 0);
+        status.shieldCooldown = Math.max(status.shieldCooldown, statusConfig.shieldCooldown ?? 0);
+      } else if (isStatusEffectId(statusConfig.statusId)) {
+        status.onHit.push({
+          traitId: trait.id,
+          statusId: statusConfig.statusId,
+          chance: statusConfig.chance ?? 1,
+          duration: statusConfig.duration ?? 0,
+          tickDamage: statusConfig.tickDamage ?? 0,
+          slowPercent: statusConfig.slowPercent ?? 0,
+          vulnerablePercent: statusConfig.vulnerablePercent ?? 0
+        });
+      }
+    }
   }
 
   projectile.cooldown = projectile.enabled ? projectile.cooldown / Math.max(0.25, fireRateMultiplier) : projectile.cooldown;
 
-  return { collision, projectile, summon };
+  return { collision, projectile, summon, status };
 }
 
 export function createRuntimeState(): BallRuntimeState {
@@ -126,6 +159,13 @@ export function createRuntimeState(): BallRuntimeState {
     turretCooldown: 0,
     deathSplitTriggered: false,
     deathHandled: false,
-    deathDamageTags: []
+    deathDamageTags: [],
+    statuses: [],
+    shield: 0,
+    shieldCooldown: 0
   };
+}
+
+function isStatusEffectId(statusId: string): statusId is StatusEffectId {
+  return statusId === "burn" || statusId === "poison" || statusId === "slow" || statusId === "vulnerable";
 }
