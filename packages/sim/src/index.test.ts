@@ -1,27 +1,31 @@
 import { describe, expect, it } from "vitest";
 
-import type { MatchConfig } from "@ball-brawl/shared";
+import type { BuildConfig, MatchConfig } from "@ball-brawl/shared";
 
-import { createBaseStats, createBattle, getSnapshot, runBattle, stepBattle } from "./index";
+import { createBaseStats, createBattle, createStatsForBuild, getSnapshot, runBattle, stepBattle } from "./index";
+
+const blueBuild: BuildConfig = {
+  version: "0.1",
+  name: "Blue",
+  skin: "default_blue",
+  baseModel: "default",
+  traits: ["hp_boost", "speed_boost", "collision_boost", "hard_shell"]
+};
+
+const redBuild: BuildConfig = {
+  version: "0.1",
+  name: "Red",
+  skin: "default_red",
+  baseModel: "default",
+  traits: ["giant_body", "collision_boost", "hard_shell", "wall_charge"]
+};
 
 const matchConfig: MatchConfig = {
   version: "0.1",
   seed: 12345,
   arenaId: "mvp_rect",
-  blue: {
-    version: "0.1",
-    name: "Blue",
-    skin: "default_blue",
-    baseModel: "default",
-    traits: []
-  },
-  red: {
-    version: "0.1",
-    name: "Red",
-    skin: "default_red",
-    baseModel: "default",
-    traits: []
-  }
+  blue: blueBuild,
+  red: redBuild
 };
 
 describe("sim bootstrap", () => {
@@ -34,7 +38,32 @@ describe("sim bootstrap", () => {
     expect(second.maxHp).toBe(100);
   });
 
-  it("runs a no-trait battle to completion", () => {
+  it("applies build traits to base stats", () => {
+    const stats = createStatsForBuild({
+      version: "0.1",
+      name: "Stacked HP",
+      skin: "default_blue",
+      baseModel: "default",
+      traits: ["hp_boost", "hp_boost", "hp_boost", "hp_boost"]
+    });
+
+    expect(stats.maxHp).toBe(180);
+    expect(stats.moveSpeed).toBe(180);
+  });
+
+  it("rejects invalid builds before simulation starts", () => {
+    expect(() =>
+      createStatsForBuild({
+        version: "0.1",
+        name: "Invalid",
+        skin: "default_blue",
+        baseModel: "default",
+        traits: ["ranged_core", "ranged_core", "hp_boost", "speed_boost"]
+      })
+    ).toThrow(/Invalid build config/);
+  });
+
+  it("runs a trait battle to completion", () => {
     const world = runBattle(createBattle(matchConfig));
 
     expect(world.result).toBeDefined();
@@ -50,6 +79,23 @@ describe("sim bootstrap", () => {
     expect(first.balls.map((ball) => ({ hp: ball.hp, alive: ball.alive, position: ball.position }))).toEqual(
       second.balls.map((ball) => ({ hp: ball.hp, alive: ball.alive, position: ball.position }))
     );
+  });
+
+  it("initializes battle balls with compiled stats", () => {
+    const world = createBattle({
+      ...matchConfig,
+      blue: {
+        ...blueBuild,
+        traits: ["hp_boost", "hp_boost", "hp_boost", "hp_boost"]
+      }
+    });
+    const blue = world.balls[0];
+    if (!blue) {
+      throw new Error("Expected a blue ball");
+    }
+
+    expect(blue.stats.maxHp).toBe(180);
+    expect(blue.hp).toBe(180);
   });
 
   it("applies collision cooldown between the same pair", () => {

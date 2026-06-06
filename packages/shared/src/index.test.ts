@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { BuildConfig } from "./index";
+import { TRAITS_PER_BUILD, type BuildConfig } from "./index";
 
 describe("shared models", () => {
   it("represents a four-trait build config", () => {
@@ -12,6 +12,6 @@ describe("shared models", () => {
       traits: ["hp_boost", "speed_boost", "collision_boost", "hard_shell"]
     };
 
-    expect(build.traits).toHaveLength(4);
+    expect(build.traits).toHaveLength(TRAITS_PER_BUILD);
   });
 });

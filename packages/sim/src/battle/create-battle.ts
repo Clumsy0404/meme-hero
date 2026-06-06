@@ -1,8 +1,8 @@
-import { baseBallStats } from "@ball-brawl/content";
 import type { BallStats, MatchConfig, Team, Vec2 } from "@ball-brawl/shared";
 
 import { normalize, vec } from "../math/vector";
 import { SeededRng } from "../rng/seeded-rng";
+import { createStatsForBuild } from "./build-stats";
 import type { ArenaState, BallState, BattleWorldState } from "./types";
 
 export const DEFAULT_ARENA: ArenaState = {
@@ -14,9 +14,22 @@ export const DEFAULT_ARENA: ArenaState = {
 export function createBattle(match: MatchConfig, arena: ArenaState = DEFAULT_ARENA): BattleWorldState {
   const rng = new SeededRng(match.seed);
   const centerY = arena.height / 2;
-  const stats = createStatsCopy();
-  const blue = createMainBall("blue-main", "blue", stats, vec(arena.width * 0.28, centerY), initialVelocity("blue", rng));
-  const red = createMainBall("red-main", "red", createStatsCopy(), vec(arena.width * 0.72, centerY), initialVelocity("red", rng));
+  const blueStats = createStatsForBuild(match.blue);
+  const redStats = createStatsForBuild(match.red);
+  const blue = createMainBall(
+    "blue-main",
+    "blue",
+    blueStats,
+    vec(arena.width * 0.28, centerY),
+    initialVelocity("blue", rng, blueStats.moveSpeed)
+  );
+  const red = createMainBall(
+    "red-main",
+    "red",
+    redStats,
+    vec(arena.width * 0.72, centerY),
+    initialVelocity("red", rng, redStats.moveSpeed)
+  );
 
   return {
     version: match.version,
@@ -27,10 +40,6 @@ export function createBattle(match: MatchConfig, arena: ArenaState = DEFAULT_ARE
     balls: [blue, red],
     events: []
   };
-}
-
-function createStatsCopy(): BallStats {
-  return { ...baseBallStats };
 }
 
 function createMainBall(id: string, team: Team, stats: BallStats, position: Vec2, velocity: Vec2): BallState {
@@ -47,9 +56,9 @@ function createMainBall(id: string, team: Team, stats: BallStats, position: Vec2
   };
 }
 
-function initialVelocity(team: Team, rng: SeededRng): Vec2 {
+function initialVelocity(team: Team, rng: SeededRng, moveSpeed: number): Vec2 {
   const x = team === "blue" ? 1 : -1;
   const y = rng.range(-0.42, 0.42);
   const direction = normalize({ x, y });
-  return { x: direction.x * baseBallStats.moveSpeed, y: direction.y * baseBallStats.moveSpeed };
+  return { x: direction.x * moveSpeed, y: direction.y * moveSpeed };
 }
