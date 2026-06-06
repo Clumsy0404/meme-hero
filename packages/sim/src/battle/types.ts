@@ -17,9 +17,33 @@ export type BallState = {
   alive: boolean;
   hp: number;
   stats: BallStats;
+  mechanics: BallMechanics;
+  runtime: BallRuntimeState;
   position: Vec2;
   velocity: Vec2;
   collisionTimers: Record<string, number>;
+};
+
+export type BallMechanics = {
+  collision: CollisionMechanics;
+};
+
+export type CollisionMechanics = {
+  lifestealRatio: number;
+  healPerSecondLimit: number;
+  reflectRatio: number;
+  explosionDamage: number;
+  explosionRadius: number;
+  explosionCooldown: number;
+  wallChargeMaxStacks: number;
+  wallChargeDamagePercentPerStack: number;
+};
+
+export type BallRuntimeState = {
+  lifestealWindowStart: number;
+  lifestealHealedInWindow: number;
+  collisionExplosionCooldown: number;
+  wallChargeStacks: number;
 };
 
 export type DamageTag = "collision" | "projectile" | "dot" | "explosion" | "reflect";
@@ -49,13 +73,32 @@ export type WallBounceEvent = {
   position: Vec2;
 };
 
+export type HealEvent = {
+  type: "heal";
+  tick: number;
+  sourceId?: string;
+  targetId: string;
+  amount: number;
+  position: Vec2;
+};
+
+export type TraitTriggeredEvent = {
+  type: "trait_triggered";
+  tick: number;
+  ballId: string;
+  traitId: string;
+  trigger: string;
+  position: Vec2;
+  value?: number;
+};
+
 export type MatchEndEvent = {
   type: "match_end";
   tick: number;
   result: BattleResult;
 };
 
-export type BattleEvent = DamageEvent | CollisionEvent | WallBounceEvent | MatchEndEvent;
+export type BattleEvent = DamageEvent | CollisionEvent | WallBounceEvent | HealEvent | TraitTriggeredEvent | MatchEndEvent;
 
 export type BattleEndReason = "main_ball_dead" | "double_ko" | "timeout";
 
@@ -86,6 +129,7 @@ export type RenderBall = {
   hp: number;
   maxHp: number;
   radius: number;
+  wallChargeStacks: number;
   position: Vec2;
 };
 

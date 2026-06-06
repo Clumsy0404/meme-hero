@@ -7,11 +7,14 @@ export { FIXED_DT, runBattle, stepBattle } from "./battle/step-battle";
 export { getSnapshot } from "./battle/snapshot";
 export type {
   ArenaState,
+  BallMechanics,
   BallRole,
+  BallRuntimeState,
   BallState,
   BattleEvent,
   BattleResult,
   BattleWorldState,
+  CollisionMechanics,
   WorldSnapshot
 } from "./battle/types";
 export { SeededRng } from "./rng/seeded-rng";

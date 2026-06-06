@@ -56,9 +56,9 @@ export function App() {
     <main className="app-shell">
       <section className="dashboard">
         <aside className="builder-panel">
-          <p className="eyebrow">Phase 3</p>
+          <p className="eyebrow">Phase 4</p>
           <h1>小球乱斗</h1>
-          <p className="summary">双方固定装备 {TRAITS_PER_BUILD} 个词条，属性类词条已接入基础数值结算。</p>
+          <p className="summary">双方固定装备 {TRAITS_PER_BUILD} 个词条，属性与碰撞机制词条已接入战斗结算。</p>
 
           <BuildEditor
             label="蓝方"

@@ -54,6 +54,8 @@ function updateCollisionTimers(world: BattleWorldState, dt: number): void {
         ball.collisionTimers[targetId] = next;
       }
     }
+
+    ball.runtime.collisionExplosionCooldown = Math.max(0, ball.runtime.collisionExplosionCooldown - dt);
   }
 }
 
@@ -116,6 +118,7 @@ function handleWallBounce(world: BattleWorldState, ball: BallState): void {
       ballId: ball.id,
       position: { ...ball.position }
     });
+    gainWallCharge(world, ball);
   }
 }
 
@@ -155,8 +158,14 @@ function resolvePairCollision(world: BattleWorldState, a: BallState, b: BallStat
   });
 
   if (canDamagePair(a, b)) {
-    applyDamage(world, a, b, a.stats.collisionDamage);
-    applyDamage(world, b, a, b.stats.collisionDamage);
+    const damageToB = applyDamage(world, a, b, getCollisionDamage(world, a), ["collision"]);
+    const damageToA = applyDamage(world, b, a, getCollisionDamage(world, b), ["collision"]);
+    applyLifesteal(world, a, damageToB);
+    applyLifesteal(world, b, damageToA);
+    applyReflect(world, b, a, damageToB);
+    applyReflect(world, a, b, damageToA);
+    triggerCollisionExplosion(world, a, midpoint(a.position, b.position));
+    triggerCollisionExplosion(world, b, midpoint(a.position, b.position));
     a.collisionTimers[b.id] = a.stats.collisionCooldown;
     b.collisionTimers[a.id] = b.stats.collisionCooldown;
   }
@@ -182,11 +191,40 @@ function canDamagePair(a: BallState, b: BallState): boolean {
   return (a.collisionTimers[b.id] ?? 0) <= 0 && (b.collisionTimers[a.id] ?? 0) <= 0;
 }
 
-function applyDamage(world: BattleWorldState, source: BallState, target: BallState, amount: number): void {
+function getCollisionDamage(world: BattleWorldState, source: BallState): number {
+  const { wallChargeStacks } = source.runtime;
+  const { wallChargeDamagePercentPerStack } = source.mechanics.collision;
+  if (wallChargeStacks <= 0 || wallChargeDamagePercentPerStack <= 0) {
+    return source.stats.collisionDamage;
+  }
+
+  world.events.push({
+    type: "trait_triggered",
+    tick: world.tick,
+    ballId: source.id,
+    traitId: "wall_charge",
+    trigger: "collision_damage_bonus",
+    position: { ...source.position },
+    value: wallChargeStacks
+  });
+  source.runtime.wallChargeStacks = 0;
+  return source.stats.collisionDamage * (1 + wallChargeStacks * wallChargeDamagePercentPerStack);
+}
+
+function applyDamage(
+  world: BattleWorldState,
+  source: BallState,
+  target: BallState,
+  amount: number,
+  tags: ["collision"] | ["explosion"] | ["reflect"]
+): number {
   if (!target.alive) {
-    return;
+    return 0;
   }
   const finalAmount = Math.max(0, amount * (1 - clamp(target.stats.damageReduction, 0, 0.9)));
+  if (finalAmount <= 0) {
+    return 0;
+  }
   target.hp = Math.max(0, target.hp - finalAmount);
   world.events.push({
     type: "damage",
@@ -194,12 +232,126 @@ function applyDamage(world: BattleWorldState, source: BallState, target: BallSta
     sourceId: source.id,
     targetId: target.id,
     amount: finalAmount,
-    tags: ["collision"],
+    tags,
     position: { ...target.position }
   });
   if (target.hp <= 0) {
     target.alive = false;
   }
+  return finalAmount;
+}
+
+function applyHeal(world: BattleWorldState, source: BallState, target: BallState, amount: number): number {
+  if (!target.alive || amount <= 0) {
+    return 0;
+  }
+  const finalAmount = Math.min(amount, target.stats.maxHp - target.hp);
+  if (finalAmount <= 0) {
+    return 0;
+  }
+  target.hp += finalAmount;
+  world.events.push({
+    type: "heal",
+    tick: world.tick,
+    sourceId: source.id,
+    targetId: target.id,
+    amount: finalAmount,
+    position: { ...target.position }
+  });
+  return finalAmount;
+}
+
+function applyLifesteal(world: BattleWorldState, source: BallState, dealtDamage: number): void {
+  const { lifestealRatio, healPerSecondLimit } = source.mechanics.collision;
+  if (lifestealRatio <= 0 || healPerSecondLimit <= 0 || dealtDamage <= 0) {
+    return;
+  }
+
+  if (world.time - source.runtime.lifestealWindowStart >= 1) {
+    source.runtime.lifestealWindowStart = world.time;
+    source.runtime.lifestealHealedInWindow = 0;
+  }
+
+  const remainingWindowHeal = Math.max(0, healPerSecondLimit - source.runtime.lifestealHealedInWindow);
+  const healed = applyHeal(world, source, source, Math.min(dealtDamage * lifestealRatio, remainingWindowHeal));
+  if (healed > 0) {
+    source.runtime.lifestealHealedInWindow += healed;
+    world.events.push({
+      type: "trait_triggered",
+      tick: world.tick,
+      ballId: source.id,
+      traitId: "lifesteal_collision",
+      trigger: "collision_lifesteal",
+      position: { ...source.position },
+      value: healed
+    });
+  }
+}
+
+function applyReflect(world: BattleWorldState, defender: BallState, attacker: BallState, receivedDamage: number): void {
+  const { reflectRatio } = defender.mechanics.collision;
+  if (reflectRatio <= 0 || receivedDamage <= 0) {
+    return;
+  }
+
+  const reflected = applyDamage(world, defender, attacker, receivedDamage * reflectRatio, ["reflect"]);
+  if (reflected > 0) {
+    world.events.push({
+      type: "trait_triggered",
+      tick: world.tick,
+      ballId: defender.id,
+      traitId: "spike_reflect",
+      trigger: "collision_reflect",
+      position: { ...defender.position },
+      value: reflected
+    });
+  }
+}
+
+function triggerCollisionExplosion(world: BattleWorldState, source: BallState, position: Vec2): void {
+  const { explosionDamage, explosionRadius, explosionCooldown } = source.mechanics.collision;
+  if (explosionDamage <= 0 || explosionRadius <= 0 || source.runtime.collisionExplosionCooldown > 0) {
+    return;
+  }
+
+  source.runtime.collisionExplosionCooldown = explosionCooldown;
+  world.events.push({
+    type: "trait_triggered",
+    tick: world.tick,
+    ballId: source.id,
+    traitId: "collision_burst",
+    trigger: "collision_explosion",
+    position: { ...position },
+    value: explosionDamage
+  });
+
+  for (const target of world.balls) {
+    if (!target.alive || target.team === source.team || distance(target.position, position) > explosionRadius) {
+      continue;
+    }
+    applyDamage(world, source, target, explosionDamage, ["explosion"]);
+  }
+}
+
+function gainWallCharge(world: BattleWorldState, ball: BallState): void {
+  const { wallChargeMaxStacks } = ball.mechanics.collision;
+  if (wallChargeMaxStacks <= 0) {
+    return;
+  }
+  const nextStacks = Math.min(wallChargeMaxStacks, ball.runtime.wallChargeStacks + 1);
+  if (nextStacks === ball.runtime.wallChargeStacks) {
+    return;
+  }
+  ball.runtime.wallChargeStacks = nextStacks;
+  world.events.push({
+    type: "trait_triggered",
+    tick: world.tick,
+    ballId: ball.id,
+    traitId: "wall_charge",
+    trigger: "wall_bounce_charge",
+    position: { ...ball.position },
+    value: nextStacks
+  });
 }
 
 function checkBattleEnd(world: BattleWorldState): void {

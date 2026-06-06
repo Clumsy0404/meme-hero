@@ -13,6 +13,7 @@ export function getSnapshot(world: BattleWorldState): WorldSnapshot {
       hp: ball.hp,
       maxHp: ball.stats.maxHp,
       radius: ball.stats.radius,
+      wallChargeStacks: ball.runtime.wallChargeStacks,
       position: { ...ball.position }
     })),
     events: world.events.map((event) => ({ ...event }))

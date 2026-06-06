@@ -2,6 +2,7 @@ import type { BallStats, MatchConfig, Team, Vec2 } from "@ball-brawl/shared";
 
 import { normalize, vec } from "../math/vector";
 import { SeededRng } from "../rng/seeded-rng";
+import { createMechanicsForBuild, createRuntimeState } from "./build-mechanics";
 import { createStatsForBuild } from "./build-stats";
 import type { ArenaState, BallState, BattleWorldState } from "./types";
 
@@ -16,10 +17,13 @@ export function createBattle(match: MatchConfig, arena: ArenaState = DEFAULT_ARE
   const centerY = arena.height / 2;
   const blueStats = createStatsForBuild(match.blue);
   const redStats = createStatsForBuild(match.red);
+  const blueMechanics = createMechanicsForBuild(match.blue);
+  const redMechanics = createMechanicsForBuild(match.red);
   const blue = createMainBall(
     "blue-main",
     "blue",
     blueStats,
+    blueMechanics,
     vec(arena.width * 0.28, centerY),
     initialVelocity("blue", rng, blueStats.moveSpeed)
   );
@@ -27,6 +31,7 @@ export function createBattle(match: MatchConfig, arena: ArenaState = DEFAULT_ARE
     "red-main",
     "red",
     redStats,
+    redMechanics,
     vec(arena.width * 0.72, centerY),
     initialVelocity("red", rng, redStats.moveSpeed)
   );
@@ -42,7 +47,14 @@ export function createBattle(match: MatchConfig, arena: ArenaState = DEFAULT_ARE
   };
 }
 
-function createMainBall(id: string, team: Team, stats: BallStats, position: Vec2, velocity: Vec2): BallState {
+function createMainBall(
+  id: string,
+  team: Team,
+  stats: BallStats,
+  mechanics: BallState["mechanics"],
+  position: Vec2,
+  velocity: Vec2
+): BallState {
   return {
     id,
     team,
@@ -50,6 +62,8 @@ function createMainBall(id: string, team: Team, stats: BallStats, position: Vec2
     alive: true,
     hp: stats.maxHp,
     stats,
+    mechanics,
+    runtime: createRuntimeState(),
     position,
     velocity,
     collisionTimers: {}
