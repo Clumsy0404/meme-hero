@@ -103,6 +103,7 @@ function drawSnapshot(stage: Container, snapshot: WorldSnapshot): void {
   const graphics = new Graphics();
   drawArena(graphics, snapshot);
   drawEvents(graphics, snapshot.events);
+  drawProjectiles(graphics, snapshot);
   drawBalls(graphics, snapshot);
   stage.addChild(graphics);
 
@@ -171,6 +172,19 @@ function drawBalls(graphics: Graphics, snapshot: WorldSnapshot): void {
         alpha: 0.72
       });
     }
+  }
+}
+
+function drawProjectiles(graphics: Graphics, snapshot: WorldSnapshot): void {
+  for (const projectile of snapshot.projectiles) {
+    const x = projectile.position.x * arenaScale;
+    const y = projectile.position.y * arenaScale;
+    const radius = Math.max(3, projectile.radius * arenaScale);
+    const color = ballColors[projectile.team];
+
+    graphics.circle(x + 3, y + 4, radius).fill({ color: 0x000000, alpha: 0.28 });
+    graphics.circle(x, y, radius + 3).stroke({ color, width: 2, alpha: 0.58 });
+    graphics.circle(x, y, radius).fill(0xf8fafc).stroke({ color, width: 2, alpha: 0.85 });
   }
 }
 

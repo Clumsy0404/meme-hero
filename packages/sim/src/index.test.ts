@@ -65,6 +65,20 @@ function placeOverlappingMainBalls(world: TestWorld): [TestBall, TestBall] {
   return [blue, red];
 }
 
+function placeSeparatedMainBalls(world: TestWorld, blueX = 60, redX = 180, y = 90): [TestBall, TestBall] {
+  const [blue, red] = world.balls;
+  if (!blue || !red) {
+    throw new Error("Expected two battle balls");
+  }
+  blue.position = { x: blueX, y };
+  red.position = { x: redX, y };
+  blue.velocity = { x: 0, y: 0 };
+  red.velocity = { x: 0, y: 0 };
+  blue.collisionTimers = {};
+  red.collisionTimers = {};
+  return [blue, red];
+}
+
 describe("sim bootstrap", () => {
   it("creates independent base stats copies", () => {
     const first = createBaseStats();
@@ -246,6 +260,109 @@ describe("sim bootstrap", () => {
     expect(world.events.some((event) => event.type === "wall_bounce" && event.ballId === blue.id)).toBe(true);
   });
 
+  it("fires a weak base projectile when a projectile trait is equipped", () => {
+    const world = createBattle(
+      makeMatch(["ranged_core", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 240, height: 180 }
+    );
+    placeSeparatedMainBalls(world, 60, 180);
+
+    stepBattle(world, 1 / 60, 0);
+
+    expect(world.projectiles).toHaveLength(1);
+    expect(world.projectiles[0]?.team).toBe("blue");
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "projectile_fire")).toBe(true);
+  });
+
+  it("damages enemies with projectile hit events", () => {
+    const world = createBattle(
+      makeMatch(["ranged_core", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 240, height: 180 }
+    );
+    const [, red] = placeSeparatedMainBalls(world, 60, 120);
+
+    stepBattle(world, 1 / 60, 0);
+    const damageEvent = world.events.find((event) => event.type === "damage" && event.tags.includes("projectile"));
+
+    if (!damageEvent || damageEvent.type !== "damage") {
+      throw new Error("Expected projectile damage");
+    }
+    expect(damageEvent.amount).toBeCloseTo(5.2);
+    expect(red.hp).toBeCloseTo(red.stats.maxHp - 5.2);
+    expect(world.projectiles).toHaveLength(0);
+  });
+
+  it("fires three projectiles with pellet barrage", () => {
+    const world = createBattle(
+      makeMatch(["pellet_barrage", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 240, height: 180 }
+    );
+    placeSeparatedMainBalls(world, 60, 180);
+
+    stepBattle(world, 1 / 60, 0);
+    const fireEvent = world.events.find((event) => event.type === "trait_triggered" && event.trigger === "projectile_fire");
+
+    expect(world.projectiles).toHaveLength(3);
+    if (!fireEvent || fireEvent.type !== "trait_triggered") {
+      throw new Error("Expected projectile fire trigger");
+    }
+    expect(fireEvent.value).toBe(3);
+  });
+
+  it("keeps ricochet projectiles alive after a wall bounce", () => {
+    const world = createBattle(
+      makeMatch(["ricochet_shot", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 180, height: 120 }
+    );
+    placeSeparatedMainBalls(world, 60, 140, 60);
+
+    stepBattle(world, 1 / 60, 0);
+    const projectile = world.projectiles[0];
+    if (!projectile) {
+      throw new Error("Expected a projectile before bounce");
+    }
+    projectile.position = { x: world.arena.width - projectile.radius - 1, y: 24 };
+    projectile.velocity = { x: 100, y: 0 };
+
+    stepBattle(world, 1 / 60, 0);
+
+    expect(world.projectiles).toHaveLength(1);
+    expect(world.projectiles[0]?.velocity.x).toBeLessThan(0);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.traitId === "ricochet_shot")).toBe(true);
+  });
+
+  it("keeps pierce projectiles after the first hit", () => {
+    const world = createBattle(
+      makeMatch(["pierce_shot", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 240, height: 180 }
+    );
+    const [, red] = placeSeparatedMainBalls(world, 60, 120);
+
+    stepBattle(world, 1 / 60, 0);
+
+    expect(red.hp).toBeCloseTo(red.stats.maxHp - 4);
+    expect(world.projectiles).toHaveLength(1);
+    expect(world.projectiles[0]?.hitBallIds).toContain(red.id);
+  });
+
+  it("splits projectiles into child shots on hit", () => {
+    const world = createBattle(
+      makeMatch(["split_shot", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 240, height: 180 }
+    );
+    placeSeparatedMainBalls(world, 60, 120);
+
+    stepBattle(world, 1 / 60, 0);
+    const splitEvent = world.events.find((event) => event.type === "trait_triggered" && event.traitId === "split_shot");
+
+    expect(world.projectiles).toHaveLength(2);
+    expect(world.projectiles.every((projectile) => projectile.isChild)).toBe(true);
+    if (!splitEvent || splitEvent.type !== "trait_triggered") {
+      throw new Error("Expected projectile split trigger");
+    }
+    expect(splitEvent.value).toBe(2);
+  });
+
   it("returns render snapshots without exposing the rng", () => {
     const world = createBattle(matchConfig);
     stepBattle(world);
@@ -253,6 +370,24 @@ describe("sim bootstrap", () => {
 
     expect(snapshot.tick).toBe(1);
     expect(snapshot.balls).toHaveLength(2);
+    expect(snapshot.projectiles).toHaveLength(0);
     expect("rng" in snapshot).toBe(false);
+  });
+
+  it("includes projectiles in render snapshots", () => {
+    const world = createBattle(
+      makeMatch(["ranged_core", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 240, height: 180 }
+    );
+    placeSeparatedMainBalls(world, 60, 180);
+
+    stepBattle(world, 1 / 60, 0);
+    const snapshot = getSnapshot(world);
+
+    expect(snapshot.projectiles).toHaveLength(1);
+    expect(snapshot.projectiles[0]).toMatchObject({
+      id: world.projectiles[0]?.id,
+      team: "blue"
+    });
   });
 });

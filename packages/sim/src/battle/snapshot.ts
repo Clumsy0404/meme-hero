@@ -16,6 +16,12 @@ export function getSnapshot(world: BattleWorldState): WorldSnapshot {
       wallChargeStacks: ball.runtime.wallChargeStacks,
       position: { ...ball.position }
     })),
+    projectiles: world.projectiles.map((projectile) => ({
+      id: projectile.id,
+      team: projectile.team,
+      radius: projectile.radius,
+      position: { ...projectile.position }
+    })),
     events: world.events.map((event) => ({ ...event }))
   };
 

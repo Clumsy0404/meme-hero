@@ -15,6 +15,9 @@ export type {
   BattleResult,
   BattleWorldState,
   CollisionMechanics,
+  ProjectileMechanics,
+  ProjectileState,
+  RenderProjectile,
   WorldSnapshot
 } from "./battle/types";
 export { SeededRng } from "./rng/seeded-rng";

@@ -1,7 +1,7 @@
 import type { Team, Vec2 } from "@ball-brawl/shared";
 
-import { add, clamp, distance, lengthSq, lerp, normalize, scale, sub } from "../math/vector";
-import type { BallState, BattleResult, BattleWorldState } from "./types";
+import { add, clamp, distance, length, lengthSq, lerp, normalize, scale, sub } from "../math/vector";
+import type { BallState, BattleResult, BattleWorldState, DamageTag, ProjectileState } from "./types";
 
 export const FIXED_DT = 1 / 60;
 export const DEFAULT_CHASE_STRENGTH = 0.75;
@@ -22,6 +22,8 @@ export function stepBattle(
 
   updateCollisionTimers(world, dt);
   updateBalls(world, dt, chaseStrength);
+  fireProjectiles(world);
+  updateProjectiles(world, dt);
   resolveBallCollisions(world);
   checkBattleEnd(world);
 
@@ -56,6 +58,7 @@ function updateCollisionTimers(world: BattleWorldState, dt: number): void {
     }
 
     ball.runtime.collisionExplosionCooldown = Math.max(0, ball.runtime.collisionExplosionCooldown - dt);
+    ball.runtime.projectileCooldown = Math.max(0, ball.runtime.projectileCooldown - dt);
   }
 }
 
@@ -73,6 +76,223 @@ function updateBalls(world: BattleWorldState, dt: number, chaseStrength: number)
     ball.position = add(ball.position, scale(ball.velocity, dt));
     handleWallBounce(world, ball);
   }
+}
+
+function fireProjectiles(world: BattleWorldState): void {
+  for (const ball of world.balls) {
+    if (!ball.alive || !ball.mechanics.projectile.enabled || ball.runtime.projectileCooldown > 0) {
+      continue;
+    }
+
+    const target = findTarget(world, ball);
+    if (!target) {
+      continue;
+    }
+
+    const mechanics = ball.mechanics.projectile;
+    const projectileCount = 1 + mechanics.extraProjectiles;
+    const direction = normalize(sub(target.position, ball.position), normalize(ball.velocity, { x: ball.team === "blue" ? 1 : -1, y: 0 }));
+    const spreadStep = projectileCount > 1 ? mechanics.spreadAngleDeg / (projectileCount - 1) : 0;
+    const startAngle = projectileCount > 1 ? -mechanics.spreadAngleDeg / 2 : 0;
+
+    for (let i = 0; i < projectileCount; i += 1) {
+      const shotDirection = rotate(direction, degreesToRadians(startAngle + spreadStep * i));
+      spawnProjectile(world, ball, shotDirection, false);
+    }
+
+    ball.runtime.projectileCooldown = mechanics.cooldown;
+    world.events.push({
+      type: "trait_triggered",
+      tick: world.tick,
+      ballId: ball.id,
+      traitId: "projectile_enable",
+      trigger: "projectile_fire",
+      position: { ...ball.position },
+      value: projectileCount
+    });
+  }
+}
+
+function spawnProjectile(world: BattleWorldState, owner: BallState, direction: Vec2, isChild: boolean, addToWorld = true): ProjectileState {
+  const mechanics = owner.mechanics.projectile;
+  const radius = isChild ? mechanics.radius * mechanics.childRadiusMultiplier : mechanics.radius;
+  const speed = isChild ? mechanics.speed * 0.82 : mechanics.speed;
+  const projectile: ProjectileState = {
+    id: `projectile-${world.nextEntityId}`,
+    team: owner.team,
+    ownerId: owner.id,
+    position: add(owner.position, scale(direction, owner.stats.radius + radius + 2)),
+    velocity: scale(direction, speed),
+    radius,
+    damage: isChild ? mechanics.damage * 0.55 : mechanics.damage,
+    lifetime: isChild ? Math.min(1.4, mechanics.lifetime) : mechanics.lifetime,
+    bouncesLeft: isChild ? Math.min(1, mechanics.bounces) : mechanics.bounces,
+    piercesLeft: isChild ? 0 : mechanics.pierces,
+    splitCount: isChild ? 0 : mechanics.splitCount,
+    childRadiusMultiplier: mechanics.childRadiusMultiplier,
+    homingStrength: isChild ? mechanics.homingStrength * 0.5 : mechanics.homingStrength,
+    hitBallIds: [],
+    isChild
+  };
+  world.nextEntityId += 1;
+  if (addToWorld) {
+    world.projectiles.push(projectile);
+  }
+  return projectile;
+}
+
+function updateProjectiles(world: BattleWorldState, dt: number): void {
+  const activeProjectiles: ProjectileState[] = [];
+  const spawnedProjectiles: ProjectileState[] = [];
+
+  for (const projectile of world.projectiles) {
+    projectile.lifetime -= dt;
+    if (projectile.lifetime <= 0) {
+      continue;
+    }
+
+    steerProjectile(world, projectile, dt);
+    projectile.position = add(projectile.position, scale(projectile.velocity, dt));
+    if (!handleProjectileWallBounce(world, projectile)) {
+      continue;
+    }
+
+    const owner = world.balls.find((ball) => ball.id === projectile.ownerId);
+    if (!owner) {
+      continue;
+    }
+
+    let keepProjectile = true;
+    for (const target of world.balls) {
+      if (!keepProjectile) {
+        break;
+      }
+      if (!canProjectileHit(projectile, target)) {
+        continue;
+      }
+
+      const dealtDamage = applyDamage(world, owner, target, projectile.damage, ["projectile"]);
+      if (dealtDamage <= 0) {
+        continue;
+      }
+
+      projectile.hitBallIds.push(target.id);
+      if (projectile.splitCount > 0 && !projectile.isChild) {
+        spawnedProjectiles.push(...splitProjectile(world, owner, projectile));
+      }
+
+      if (projectile.piercesLeft > 0) {
+        projectile.piercesLeft -= 1;
+      } else {
+        keepProjectile = false;
+      }
+    }
+
+    if (keepProjectile) {
+      activeProjectiles.push(projectile);
+    }
+  }
+
+  world.projectiles = activeProjectiles.concat(spawnedProjectiles);
+}
+
+function steerProjectile(world: BattleWorldState, projectile: ProjectileState, dt: number): void {
+  if (projectile.homingStrength <= 0) {
+    return;
+  }
+  const target = findNearestEnemy(world, projectile.team, projectile.position);
+  if (!target) {
+    return;
+  }
+  const speed = length(projectile.velocity);
+  const currentDirection = normalize(projectile.velocity);
+  const targetDirection = normalize(sub(target.position, projectile.position), currentDirection);
+  const nextDirection = normalize(lerp(currentDirection, targetDirection, clamp(projectile.homingStrength * dt, 0, 1)), currentDirection);
+  projectile.velocity = scale(nextDirection, speed);
+}
+
+function handleProjectileWallBounce(world: BattleWorldState, projectile: ProjectileState): boolean {
+  let bounced = false;
+
+  if (projectile.position.x < projectile.radius) {
+    projectile.position.x = projectile.radius;
+    projectile.velocity.x = Math.abs(projectile.velocity.x);
+    bounced = true;
+  } else if (projectile.position.x > world.arena.width - projectile.radius) {
+    projectile.position.x = world.arena.width - projectile.radius;
+    projectile.velocity.x = -Math.abs(projectile.velocity.x);
+    bounced = true;
+  }
+
+  if (projectile.position.y < projectile.radius) {
+    projectile.position.y = projectile.radius;
+    projectile.velocity.y = Math.abs(projectile.velocity.y);
+    bounced = true;
+  } else if (projectile.position.y > world.arena.height - projectile.radius) {
+    projectile.position.y = world.arena.height - projectile.radius;
+    projectile.velocity.y = -Math.abs(projectile.velocity.y);
+    bounced = true;
+  }
+
+  if (!bounced) {
+    return true;
+  }
+  if (projectile.bouncesLeft <= 0) {
+    return false;
+  }
+
+  projectile.bouncesLeft -= 1;
+  world.events.push({
+    type: "trait_triggered",
+    tick: world.tick,
+    ballId: projectile.ownerId,
+    traitId: "ricochet_shot",
+    trigger: "projectile_bounce",
+    position: { ...projectile.position },
+    value: projectile.bouncesLeft
+  });
+  return true;
+}
+
+function canProjectileHit(projectile: ProjectileState, target: BallState): boolean {
+  return (
+    target.alive &&
+    target.team !== projectile.team &&
+    !projectile.hitBallIds.includes(target.id) &&
+    distance(projectile.position, target.position) <= projectile.radius + target.stats.radius
+  );
+}
+
+function splitProjectile(world: BattleWorldState, owner: BallState, projectile: ProjectileState): ProjectileState[] {
+  const childCount = Math.max(0, projectile.splitCount);
+  if (childCount <= 0) {
+    return [];
+  }
+
+  const children: ProjectileState[] = [];
+  const baseDirection = normalize(projectile.velocity);
+  const spreadDeg = 38;
+  const spreadStep = childCount > 1 ? spreadDeg / (childCount - 1) : 0;
+  const startAngle = childCount > 1 ? -spreadDeg / 2 : 0;
+
+  for (let i = 0; i < childCount; i += 1) {
+    const direction = rotate(baseDirection, degreesToRadians(startAngle + spreadStep * i));
+    const child = spawnProjectile(world, owner, direction, true, false);
+    child.position = { ...projectile.position };
+    child.hitBallIds = [...projectile.hitBallIds];
+    children.push(child);
+  }
+
+  world.events.push({
+    type: "trait_triggered",
+    tick: world.tick,
+    ballId: owner.id,
+    traitId: "split_shot",
+    trigger: "projectile_split",
+    position: { ...projectile.position },
+    value: childCount
+  });
+  return children;
 }
 
 function steerToward(ball: BallState, target: BallState, dt: number, chaseStrength: number): void {
@@ -216,7 +436,7 @@ function applyDamage(
   source: BallState,
   target: BallState,
   amount: number,
-  tags: ["collision"] | ["explosion"] | ["reflect"]
+  tags: DamageTag[]
 ): number {
   if (!target.alive) {
     return 0;
@@ -398,6 +618,22 @@ function findTarget(world: BattleWorldState, ball: BallState): BallState | undef
   return world.balls.find((candidate) => candidate.alive && candidate.team !== ball.team && candidate.role === "main");
 }
 
+function findNearestEnemy(world: BattleWorldState, team: Team, position: Vec2): BallState | undefined {
+  let nearest: BallState | undefined;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  for (const candidate of world.balls) {
+    if (!candidate.alive || candidate.team === team) {
+      continue;
+    }
+    const currentDistance = distance(position, candidate.position);
+    if (currentDistance < nearestDistance) {
+      nearest = candidate;
+      nearestDistance = currentDistance;
+    }
+  }
+  return nearest;
+}
+
 function hasMainAlive(world: BattleWorldState, team: Team): boolean {
   return world.balls.some((ball) => ball.team === team && ball.role === "main" && ball.alive);
 }
@@ -410,4 +646,17 @@ function remainingHp(world: BattleWorldState, team: Team): number {
 
 function midpoint(a: Vec2, b: Vec2): Vec2 {
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+function rotate(v: Vec2, radians: number): Vec2 {
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  return {
+    x: v.x * cos - v.y * sin,
+    y: v.x * sin + v.y * cos
+  };
+}
+
+function degreesToRadians(degrees: number): number {
+  return (degrees * Math.PI) / 180;
 }

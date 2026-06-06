@@ -26,6 +26,7 @@ export type BallState = {
 
 export type BallMechanics = {
   collision: CollisionMechanics;
+  projectile: ProjectileMechanics;
 };
 
 export type CollisionMechanics = {
@@ -39,14 +40,49 @@ export type CollisionMechanics = {
   wallChargeDamagePercentPerStack: number;
 };
 
+export type ProjectileMechanics = {
+  enabled: boolean;
+  damage: number;
+  cooldown: number;
+  speed: number;
+  radius: number;
+  lifetime: number;
+  extraProjectiles: number;
+  spreadAngleDeg: number;
+  bounces: number;
+  homingStrength: number;
+  pierces: number;
+  splitCount: number;
+  childRadiusMultiplier: number;
+};
+
 export type BallRuntimeState = {
   lifestealWindowStart: number;
   lifestealHealedInWindow: number;
   collisionExplosionCooldown: number;
   wallChargeStacks: number;
+  projectileCooldown: number;
 };
 
 export type DamageTag = "collision" | "projectile" | "dot" | "explosion" | "reflect";
+
+export type ProjectileState = {
+  id: string;
+  team: Team;
+  ownerId: string;
+  position: Vec2;
+  velocity: Vec2;
+  radius: number;
+  damage: number;
+  lifetime: number;
+  bouncesLeft: number;
+  piercesLeft: number;
+  splitCount: number;
+  childRadiusMultiplier: number;
+  homingStrength: number;
+  hitBallIds: string[];
+  isChild: boolean;
+};
 
 export type DamageEvent = {
   type: "damage";
@@ -117,7 +153,9 @@ export type BattleWorldState = {
   rng: SeededRng;
   arena: ArenaState;
   balls: BallState[];
+  projectiles: ProjectileState[];
   events: BattleEvent[];
+  nextEntityId: number;
   result?: BattleResult;
 };
 
@@ -133,11 +171,19 @@ export type RenderBall = {
   position: Vec2;
 };
 
+export type RenderProjectile = {
+  id: string;
+  team: Team;
+  radius: number;
+  position: Vec2;
+};
+
 export type WorldSnapshot = {
   tick: number;
   time: number;
   arena: ArenaState;
   balls: RenderBall[];
+  projectiles: RenderProjectile[];
   events: BattleEvent[];
   result?: BattleResult;
 };
