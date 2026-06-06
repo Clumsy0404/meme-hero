@@ -6,8 +6,8 @@ const fallback: SavedBuildState = {
   version: "0.1",
   battleMode: "challenge",
   selectedPresetId: "collision_bruiser",
-  blueTraits: ["low_hp_rage", "kill_growth", "time_growth", "collision_boost"],
-  redTraits: ["one_revive", "shield_cycle", "vulnerable_payload", "giant_body"]
+  blueTraits: ["low_hp_rage", "time_growth", "collision_boost"],
+  redTraits: ["one_revive", "shield_cycle", "vulnerable_payload"]
 };
 
 describe("build storage", () => {
@@ -17,16 +17,16 @@ describe("build storage", () => {
         version: "0.1",
         battleMode: "free",
         selectedPresetId: "projectile_rain",
-        blueTraits: ["hp_boost", "speed_boost", "giant_body", "collision_boost"],
-        redTraits: ["ranged_core", "pellet_barrage", "homing_shot", "pierce_shot"]
+        blueTraits: ["hp_boost", "speed_boost", "giant_body"],
+        redTraits: ["ranged_core", "pellet_barrage", "homing_shot"]
       },
       fallback
     );
 
     expect(saved.battleMode).toBe("free");
     expect(saved.selectedPresetId).toBe("projectile_rain");
-    expect(saved.blueTraits).toEqual(["hp_boost", "speed_boost", "giant_body", "collision_boost"]);
-    expect(saved.redTraits).toEqual(["ranged_core", "pellet_barrage", "homing_shot", "pierce_shot"]);
+    expect(saved.blueTraits).toEqual(["hp_boost", "speed_boost", "giant_body"]);
+    expect(saved.redTraits).toEqual(["ranged_core", "pellet_barrage", "homing_shot"]);
   });
 
   it("falls back when saved trait lists are malformed", () => {
@@ -34,7 +34,7 @@ describe("build storage", () => {
       {
         battleMode: "free",
         selectedPresetId: "status_drain",
-        blueTraits: ["unknown_trait", "speed_boost", "giant_body", "collision_boost"],
+        blueTraits: ["unknown_trait", "speed_boost", "giant_body"],
         redTraits: ["ranged_core"]
       },
       fallback

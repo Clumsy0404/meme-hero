@@ -1,8 +1,8 @@
 import { presetEnemies, type PresetEnemy } from "@ball-brawl/content";
 import type { BuildConfig, MatchConfig, TraitId } from "@ball-brawl/shared";
 
-export const defaultBlueTraits: TraitId[] = ["low_hp_rage", "kill_growth", "time_growth", "collision_boost"];
-export const defaultRedTraits: TraitId[] = ["one_revive", "shield_cycle", "vulnerable_payload", "giant_body"];
+export const defaultBlueTraits: TraitId[] = ["low_hp_rage", "time_growth", "collision_boost"];
+export const defaultRedTraits: TraitId[] = ["one_revive", "shield_cycle", "vulnerable_payload"];
 
 export { presetEnemies, type PresetEnemy };
 

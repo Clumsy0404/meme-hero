@@ -9,7 +9,7 @@ const blueBuild: BuildConfig = {
   name: "Blue",
   skin: "default_blue",
   baseModel: "default",
-  traits: ["hp_boost", "speed_boost", "collision_boost", "hard_shell"]
+  traits: ["hp_boost", "speed_boost", "collision_boost"]
 };
 
 const redBuild: BuildConfig = {
@@ -17,7 +17,7 @@ const redBuild: BuildConfig = {
   name: "Red",
   skin: "default_red",
   baseModel: "default",
-  traits: ["giant_body", "collision_boost", "hard_shell", "wall_charge"]
+  traits: ["giant_body", "collision_boost", "wall_charge"]
 };
 
 const matchConfig: MatchConfig = {
@@ -28,7 +28,7 @@ const matchConfig: MatchConfig = {
   red: redBuild
 };
 
-const hpStackTraits: TraitId[] = ["hp_boost", "hp_boost", "hp_boost", "hp_boost"];
+const hpStackTraits: TraitId[] = ["hp_boost", "hp_boost", "hp_boost"];
 
 type TestWorld = ReturnType<typeof createBattle>;
 type TestBall = NonNullable<TestWorld["balls"][number]>;
@@ -95,10 +95,10 @@ describe("sim bootstrap", () => {
       name: "Stacked HP",
       skin: "default_blue",
       baseModel: "default",
-      traits: ["hp_boost", "hp_boost", "hp_boost", "hp_boost"]
+      traits: ["hp_boost", "hp_boost", "hp_boost"]
     });
 
-    expect(stats.maxHp).toBe(180);
+    expect(stats.maxHp).toBe(160);
     expect(stats.moveSpeed).toBe(180);
   });
 
@@ -109,7 +109,7 @@ describe("sim bootstrap", () => {
         name: "Invalid",
         skin: "default_blue",
         baseModel: "default",
-        traits: ["ranged_core", "ranged_core", "hp_boost", "speed_boost"]
+        traits: ["ranged_core", "ranged_core", "hp_boost"]
       })
     ).toThrow(/Invalid build config/);
   });
@@ -137,7 +137,7 @@ describe("sim bootstrap", () => {
       ...matchConfig,
       blue: {
         ...blueBuild,
-        traits: ["hp_boost", "hp_boost", "hp_boost", "hp_boost"]
+        traits: ["hp_boost", "hp_boost", "hp_boost"]
       }
     });
     const blue = world.balls[0];
@@ -145,8 +145,8 @@ describe("sim bootstrap", () => {
       throw new Error("Expected a blue ball");
     }
 
-    expect(blue.stats.maxHp).toBe(180);
-    expect(blue.hp).toBe(180);
+    expect(blue.stats.maxHp).toBe(160);
+    expect(blue.hp).toBe(160);
   });
 
   it("applies collision cooldown between the same pair", () => {
@@ -167,7 +167,7 @@ describe("sim bootstrap", () => {
 
   it("heals lifesteal collision damage with a per-second cap", () => {
     const world = createBattle(
-      makeMatch(["lifesteal_collision", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      makeMatch(["lifesteal_collision", "hp_boost", "hp_boost"], hpStackTraits),
       { id: "test", width: 240, height: 180 }
     );
     const [blue, red] = placeOverlappingMainBalls(world);
@@ -184,7 +184,7 @@ describe("sim bootstrap", () => {
 
   it("reflects collision damage without chaining reflect effects", () => {
     const world = createBattle(
-      makeMatch(hpStackTraits, ["spike_reflect", "hp_boost", "hp_boost", "hp_boost"]),
+      makeMatch(hpStackTraits, ["spike_reflect", "hp_boost", "hp_boost"]),
       { id: "test", width: 240, height: 180 }
     );
     const [blue, red] = placeOverlappingMainBalls(world);
@@ -202,7 +202,7 @@ describe("sim bootstrap", () => {
 
   it("triggers collision explosions with damage events", () => {
     const world = createBattle(
-      makeMatch(["collision_burst", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      makeMatch(["collision_burst", "hp_boost", "hp_boost"], hpStackTraits),
       { id: "test", width: 240, height: 180 }
     );
     const [, red] = placeOverlappingMainBalls(world);
@@ -222,7 +222,7 @@ describe("sim bootstrap", () => {
 
   it("charges collision damage after wall bounces", () => {
     const world = createBattle(
-      makeMatch(["wall_charge", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      makeMatch(["wall_charge", "hp_boost", "hp_boost"], hpStackTraits),
       { id: "test", width: 240, height: 180 }
     );
     const [blue, red] = placeOverlappingMainBalls(world);
@@ -262,7 +262,7 @@ describe("sim bootstrap", () => {
 
   it("fires a weak base projectile when a projectile trait is equipped", () => {
     const world = createBattle(
-      makeMatch(["ranged_core", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      makeMatch(["ranged_core", "hp_boost", "hp_boost"], hpStackTraits),
       { id: "test", width: 480, height: 240 }
     );
     placeSeparatedMainBalls(world, 100, 380, 120);
@@ -276,7 +276,7 @@ describe("sim bootstrap", () => {
 
   it("damages enemies with projectile hit events", () => {
     const world = createBattle(
-      makeMatch(["ranged_core", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      makeMatch(["ranged_core", "hp_boost", "hp_boost"], hpStackTraits),
       { id: "test", width: 360, height: 240 }
     );
     const [, red] = placeSeparatedMainBalls(world, 100, 225, 120);
@@ -294,7 +294,7 @@ describe("sim bootstrap", () => {
 
   it("fires three projectiles with pellet barrage", () => {
     const world = createBattle(
-      makeMatch(["pellet_barrage", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      makeMatch(["pellet_barrage", "hp_boost", "hp_boost"], hpStackTraits),
       { id: "test", width: 480, height: 240 }
     );
     placeSeparatedMainBalls(world, 100, 380, 120);
@@ -311,7 +311,7 @@ describe("sim bootstrap", () => {
 
   it("keeps ricochet projectiles alive after a wall bounce", () => {
     const world = createBattle(
-      makeMatch(["ricochet_shot", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      makeMatch(["ricochet_shot", "hp_boost", "hp_boost"], hpStackTraits),
       { id: "test", width: 420, height: 240 }
     );
     placeSeparatedMainBalls(world, 100, 320, 120);
@@ -333,7 +333,7 @@ describe("sim bootstrap", () => {
 
   it("keeps pierce projectiles after the first hit", () => {
     const world = createBattle(
-      makeMatch(["pierce_shot", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      makeMatch(["pierce_shot", "hp_boost", "hp_boost"], hpStackTraits),
       { id: "test", width: 360, height: 240 }
     );
     const [, red] = placeSeparatedMainBalls(world, 100, 225, 120);
@@ -347,7 +347,7 @@ describe("sim bootstrap", () => {
 
   it("splits projectiles into child shots on hit", () => {
     const world = createBattle(
-      makeMatch(["split_shot", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      makeMatch(["split_shot", "hp_boost", "hp_boost"], hpStackTraits),
       { id: "test", width: 360, height: 240 }
     );
     placeSeparatedMainBalls(world, 100, 225, 120);
@@ -365,7 +365,7 @@ describe("sim bootstrap", () => {
 
   it("spawns clone balls without exceeding the configured clone limit", () => {
     const world = createBattle(
-      makeMatch(["clone_spawn", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      makeMatch(["clone_spawn", "hp_boost", "hp_boost"], hpStackTraits),
       { id: "test", width: 240, height: 180 }
     );
     placeSeparatedMainBalls(world, 60, 180);
@@ -386,7 +386,7 @@ describe("sim bootstrap", () => {
 
   it("splits a dead main ball before deciding the winner", () => {
     const world = createBattle(
-      makeMatch(hpStackTraits, ["death_split", "hp_boost", "hp_boost", "hp_boost"]),
+      makeMatch(hpStackTraits, ["death_split", "hp_boost", "hp_boost"]),
       { id: "test", width: 240, height: 180 }
     );
     const red = world.balls[1];
@@ -414,7 +414,7 @@ describe("sim bootstrap", () => {
 
   it("explodes clone deaths when clone bomb is equipped", () => {
     const world = createBattle(
-      makeMatch(["clone_spawn", "clone_bomb", "hp_boost", "hp_boost"], hpStackTraits),
+      makeMatch(["clone_spawn", "clone_bomb", "hp_boost"], hpStackTraits),
       { id: "test", width: 240, height: 180 }
     );
     const [, red] = placeSeparatedMainBalls(world, 60, 150);
@@ -441,7 +441,7 @@ describe("sim bootstrap", () => {
 
   it("spawns auto turrets that fire projectile shots", () => {
     const world = createBattle(
-      makeMatch(["auto_turret", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      makeMatch(["auto_turret", "hp_boost", "hp_boost"], hpStackTraits),
       { id: "test", width: 260, height: 180 }
     );
     placeSeparatedMainBalls(world, 60, 220);
@@ -457,7 +457,7 @@ describe("sim bootstrap", () => {
 
   it("applies on-hit status payloads and resolves dot damage", () => {
     const world = createBattle(
-      makeMatch(["burn_payload", "poison_payload", "hp_boost", "hp_boost"], hpStackTraits),
+      makeMatch(["burn_payload", "poison_payload", "hp_boost"], hpStackTraits),
       { id: "test", width: 240, height: 180 }
     );
     const [blue, red] = placeOverlappingMainBalls(world);
@@ -485,7 +485,7 @@ describe("sim bootstrap", () => {
 
   it("slows target movement while the slow status is active", () => {
     const world = createBattle(
-      makeMatch(["slow_payload", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      makeMatch(["slow_payload", "hp_boost", "hp_boost"], hpStackTraits),
       { id: "test", width: 240, height: 180 }
     );
     const [blue, red] = placeOverlappingMainBalls(world);
@@ -525,7 +525,7 @@ describe("sim bootstrap", () => {
 
   it("refreshes periodic shields and absorbs incoming damage", () => {
     const world = createBattle(
-      makeMatch(hpStackTraits, ["shield_cycle", "hp_boost", "hp_boost", "hp_boost"]),
+      makeMatch(hpStackTraits, ["shield_cycle", "hp_boost", "hp_boost"]),
       { id: "test", width: 240, height: 180 }
     );
     const [, red] = placeOverlappingMainBalls(world);
@@ -542,7 +542,7 @@ describe("sim bootstrap", () => {
 
   it("triggers low hp rage and temporarily increases movement speed", () => {
     const world = createBattle(
-      makeMatch(["low_hp_rage", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      makeMatch(["low_hp_rage", "hp_boost", "hp_boost"], hpStackTraits),
       { id: "test", width: 360, height: 180 }
     );
     const [blue] = placeSeparatedMainBalls(world, 60, 300);
@@ -557,7 +557,7 @@ describe("sim bootstrap", () => {
 
   it("revives once before the battle can end", () => {
     const world = createBattle(
-      makeMatch(hpStackTraits, ["one_revive", "hp_boost", "hp_boost", "hp_boost"]),
+      makeMatch(hpStackTraits, ["one_revive", "hp_boost", "hp_boost"]),
       { id: "test", width: 240, height: 180 }
     );
     const red = world.balls[1];
@@ -578,7 +578,7 @@ describe("sim bootstrap", () => {
 
   it("adds kill growth stacks when an enemy unit finally dies", () => {
     const world = createBattle(
-      makeMatch(["kill_growth", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      makeMatch(["kill_growth", "hp_boost", "hp_boost"], hpStackTraits),
       { id: "test", width: 240, height: 180 }
     );
     const [blue, red] = placeOverlappingMainBalls(world);
@@ -593,7 +593,7 @@ describe("sim bootstrap", () => {
 
   it("adds time growth stacks after the configured interval", () => {
     const world = createBattle(
-      makeMatch(["time_growth", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      makeMatch(["time_growth", "hp_boost", "hp_boost"], hpStackTraits),
       { id: "test", width: 400, height: 180 }
     );
     const [blue] = placeSeparatedMainBalls(world, 60, 340);
@@ -619,7 +619,7 @@ describe("sim bootstrap", () => {
 
   it("includes projectiles in render snapshots", () => {
     const world = createBattle(
-      makeMatch(["ranged_core", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      makeMatch(["ranged_core", "hp_boost", "hp_boost"], hpStackTraits),
       { id: "test", width: 480, height: 240 }
     );
     placeSeparatedMainBalls(world, 100, 380, 120);
@@ -636,7 +636,7 @@ describe("sim bootstrap", () => {
 
   it("includes turrets in render snapshots", () => {
     const world = createBattle(
-      makeMatch(["auto_turret", "hp_boost", "hp_boost", "hp_boost"], hpStackTraits),
+      makeMatch(["auto_turret", "hp_boost", "hp_boost"], hpStackTraits),
       { id: "test", width: 260, height: 180 }
     );
     placeSeparatedMainBalls(world, 60, 220);
@@ -653,7 +653,7 @@ describe("sim bootstrap", () => {
 
   it("includes active statuses and shields in render snapshots", () => {
     const world = createBattle(
-      makeMatch(["burn_payload", "hp_boost", "hp_boost", "hp_boost"], ["shield_cycle", "hp_boost", "hp_boost", "hp_boost"]),
+      makeMatch(["burn_payload", "hp_boost", "hp_boost"], ["shield_cycle", "hp_boost", "hp_boost"]),
       { id: "test", width: 240, height: 180 }
     );
     const [blue, red] = placeSeparatedMainBalls(world, 60, 180);

@@ -36,42 +36,42 @@ export const presetEnemies: PresetEnemy[] = [
     name: "碰撞铁球",
     subtitle: "近战压制",
     description: "更大体型、墙反蓄力和强击退。",
-    traits: ["giant_body", "collision_boost", "gravity_knockback", "wall_charge"]
+    traits: ["giant_body", "collision_boost", "wall_charge"]
   },
   {
     id: "lifesteal_shell",
     name: "吸血硬壳",
     subtitle: "续航防守",
     description: "靠吸血、减伤和高血量拖长战斗。",
-    traits: ["lifesteal_collision", "hard_shell", "hp_boost", "giant_body"]
+    traits: ["lifesteal_collision", "hard_shell", "giant_body"]
   },
   {
     id: "projectile_rain",
     name: "弹幕核心",
     subtitle: "远程弹道",
     description: "多弹、追踪和穿透组成远程压制。",
-    traits: ["ranged_core", "pellet_barrage", "homing_shot", "pierce_shot"]
+    traits: ["ranged_core", "pellet_barrage", "homing_shot"]
   },
   {
     id: "summon_swarm",
     name: "分身炮台",
     subtitle: "召唤压场",
     description: "分身牵制、死亡爆炸和炮台补伤害。",
-    traits: ["clone_spawn", "clone_bomb", "auto_turret", "hp_boost"]
+    traits: ["clone_spawn", "clone_bomb", "auto_turret"]
   },
   {
     id: "status_drain",
     name: "状态消耗",
     subtitle: "持续削弱",
     description: "灼烧、中毒和减速持续消耗对手。",
-    traits: ["burn_payload", "poison_payload", "slow_payload", "ranged_core"]
+    traits: ["burn_payload", "poison_payload", "ranged_core"]
   },
   {
     id: "late_growth",
     name: "后期成长",
     subtitle: "越打越强",
     description: "复活容错后依靠时间和击杀成长翻盘。",
-    traits: ["one_revive", "time_growth", "kill_growth", "collision_boost"]
+    traits: ["one_revive", "time_growth", "kill_growth"]
   }
 ];
 
@@ -91,7 +91,7 @@ export const traitDefinitions: TraitDefinition[] = [
     subtitle: "提高生命上限",
     mainType: "attribute",
     tags: ["hp", "survival"],
-    repeatRule: { kind: "stackable", maxStacks: 4 },
+    repeatRule: { kind: "stackable", maxStacks: 3 },
     description: "最大生命提高 20%。",
     numeric: { statModifiers: [{ stat: "maxHp", op: "percentAdd", value: 0.2 }] },
     behaviorKeys: ["stat_modifier"]
@@ -102,7 +102,7 @@ export const traitDefinitions: TraitDefinition[] = [
     subtitle: "提高追击速度",
     mainType: "attribute",
     tags: ["speed", "movement"],
-    repeatRule: { kind: "stackable", maxStacks: 4 },
+    repeatRule: { kind: "stackable", maxStacks: 3 },
     description: "移动速度提高 15%。",
     numeric: { statModifiers: [{ stat: "moveSpeed", op: "percentAdd", value: 0.15 }] },
     behaviorKeys: ["stat_modifier"]
@@ -113,7 +113,7 @@ export const traitDefinitions: TraitDefinition[] = [
     subtitle: "更大更耐撞",
     mainType: "attribute",
     tags: ["size", "hp"],
-    repeatRule: { kind: "stackable", maxStacks: 4 },
+    repeatRule: { kind: "stackable", maxStacks: 3 },
     description: "体型提高 18%，生命提高 8%，移动速度降低 6%。",
     numeric: {
       statModifiers: [
@@ -130,7 +130,7 @@ export const traitDefinitions: TraitDefinition[] = [
     subtitle: "更小更灵活",
     mainType: "attribute",
     tags: ["size", "speed"],
-    repeatRule: { kind: "stackable", maxStacks: 4 },
+    repeatRule: { kind: "stackable", maxStacks: 3 },
     description: "体型降低 12%，速度提高 12%，生命降低 8%。",
     numeric: {
       statModifiers: [
@@ -147,7 +147,7 @@ export const traitDefinitions: TraitDefinition[] = [
     subtitle: "提高碰撞伤害",
     mainType: "attribute",
     tags: ["collision", "damage", "knockback"],
-    repeatRule: { kind: "stackable", maxStacks: 4 },
+    repeatRule: { kind: "stackable", maxStacks: 3 },
     description: "碰撞伤害提高 18%，击退提高 8%。",
     numeric: {
       statModifiers: [
@@ -163,7 +163,7 @@ export const traitDefinitions: TraitDefinition[] = [
     subtitle: "降低承受伤害",
     mainType: "attribute",
     tags: ["defense", "survival"],
-    repeatRule: { kind: "stackable", maxStacks: 4 },
+    repeatRule: { kind: "stackable", maxStacks: 3 },
     description: "获得 8% 伤害减免，移动速度降低 4%。",
     numeric: {
       statModifiers: [

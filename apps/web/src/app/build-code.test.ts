@@ -9,7 +9,7 @@ const build: BuildConfig = {
   name: "测试构筑",
   skin: "default_blue",
   baseModel: "default",
-  traits: ["hp_boost", "speed_boost", "giant_body", "collision_boost"]
+  traits: ["hp_boost", "speed_boost", "giant_body"]
 };
 
 describe("build code", () => {

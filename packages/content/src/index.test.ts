@@ -40,13 +40,13 @@ describe("content bootstrap", () => {
     }
   });
 
-  it("validates a legal four-trait build", () => {
+  it("validates a legal three-trait build", () => {
     const result = validateBuildConfig({
       version: "0.1",
       name: "属性测试球",
       skin: "default_blue",
       baseModel: "default",
-      traits: ["hp_boost", "speed_boost", "collision_boost", "hard_shell"]
+      traits: ["hp_boost", "speed_boost", "collision_boost"]
     });
 
     expect(result.ok).toBe(true);
@@ -59,7 +59,7 @@ describe("content bootstrap", () => {
       name: "四层生命球",
       skin: "default_blue",
       baseModel: "default",
-      traits: ["hp_boost", "hp_boost", "hp_boost", "hp_boost"]
+      traits: ["hp_boost", "hp_boost", "hp_boost"]
     });
 
     expect(result.ok).toBe(true);
@@ -78,14 +78,14 @@ describe("content bootstrap", () => {
       name: "未知词条球",
       skin: "default_blue",
       baseModel: "default",
-      traits: ["hp_boost", "speed_boost", "collision_boost", "missing_trait"]
+      traits: ["hp_boost", "speed_boost", "missing_trait"]
     });
     const repeatedUnique = validateBuildConfig({
       version: "0.1",
       name: "重复唯一球",
       skin: "default_blue",
       baseModel: "default",
-      traits: ["lifesteal_collision", "lifesteal_collision", "hp_boost", "speed_boost"]
+      traits: ["lifesteal_collision", "lifesteal_collision", "hp_boost"]
     });
 
     expect(invalidCount.issues.some((issue) => issue.code === "invalid_trait_count")).toBe(true);
@@ -94,6 +94,6 @@ describe("content bootstrap", () => {
   });
 
   it("uses the shared fixed trait slot count", () => {
-    expect(TRAITS_PER_BUILD).toBe(4);
+    expect(TRAITS_PER_BUILD).toBe(3);
   });
 });

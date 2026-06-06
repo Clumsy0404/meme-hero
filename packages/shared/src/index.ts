@@ -5,7 +5,7 @@ export type Vec2 = {
   y: number;
 };
 
-export const TRAITS_PER_BUILD = 4;
+export const TRAITS_PER_BUILD = 3;
 
 export type TraitId = string;
 

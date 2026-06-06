@@ -8,11 +8,11 @@
 
 ### Proposed Solution
 
-设计一款以“基础小球 + 4 个词条构筑”为核心的自动对战游戏。所有小球默认具备自动移动与碰撞伤害，词条用于改变基础数值、攻击方式、技能、状态、召唤物和规则效果。
+设计一款以“基础小球 + 3 个词条构筑”为核心的自动对战游戏。所有小球默认具备自动移动与碰撞伤害，词条用于改变基础数值、攻击方式、技能、状态、召唤物和规则效果。
 
 ### Success Criteria
 
-- MVP 支持玩家为小球自由选择固定 4 个词条。
+- MVP 支持玩家为小球自由选择固定 3 个词条。
 - MVP 支持完整自动战斗流程：配置、开战、自动对战、胜负结算。
 - 没有词条的小球也能完成一局基础碰撞战斗。
 - MVP 至少能验证 5 类流派雏形：碰撞流、生存流、弹道流、召唤流、状态流。
@@ -29,7 +29,7 @@
 
 ### User Stories
 
-- As a player, I want to choose 4 traits for my ball so that I can build a distinct combat style.
+- As a player, I want to choose 3 traits for my ball so that I can build a distinct combat style.
 - As a player, I want battles to run automatically so that build decisions matter more than real-time operation.
 - As a player, I want traits to visibly affect combat so that I can understand why a build wins or loses.
 - As a challenger, I want to fight against another player's saved build so that I can test my own build asynchronously.
@@ -37,7 +37,7 @@
 
 ### Acceptance Criteria
 
-- 玩家可以在战前为小球装备固定 4 个词条。
+- 玩家可以在战前为小球装备固定 3 个词条。
 - MVP 阶段词条从词条库中自由选择。
 - MVP 第一批词条数量约 30 个。
 - 词条命名采用“双名称制”：热梗展示名 + 功能副标题，展示名允许后续修改。
@@ -318,8 +318,8 @@ MVP：
 
 - 单机可玩 Demo。
 - 玩家自由选择词条并进行自动对战。
-- 自由对战：玩家可以手动配置蓝方和红方各 4 个词条。
-- 挑战预设敌人：玩家配置自己的 4 个词条，然后挑战 6 个预设敌人之一。
+- 自由对战：玩家可以手动配置蓝方和红方各 3 个词条。
+- 挑战预设敌人：玩家配置自己的 3 个词条，然后挑战 6 个预设敌人之一。
 
 MVP 预设敌人方向：
 
@@ -353,7 +353,7 @@ MVP 结算必做信息：
 
 - 技术栈：TypeScript Web 技术栈，推荐 Vite + React + PixiJS + 纯 TypeScript 战斗模拟核心。
 - 是否基于现有 Pygame 项目改造：否。Pygame 项目可作为玩法参考，但本项目主工程建议从 Web 技术栈重新开发。
-- 构筑存档格式：建议使用 JSON 或等价结构，至少包含版本号、基础模型、皮肤、4 个词条 ID。
+- 构筑存档格式：建议使用 JSON 或等价结构，至少包含版本号、基础模型、皮肤、3 个词条 ID。
 - 联机服务与账号系统：MVP 暂不实现。
 
 ### Security & Privacy
@@ -370,7 +370,7 @@ MVP v0.1：
 
 - 极简圆球美术。
 - 基础小球自动移动与碰撞伤害。
-- 固定 4 词条装备。
+- 固定 3 词条装备。
 - 自由选择词条。
 - 30 个左右第一批 MVP 词条。
 - 自由对战与挑战预设敌人两种配置方式。
@@ -408,7 +408,7 @@ Long-Term：
 - 产品方向：玩家自己选词条、配构筑、打对战或关卡。
 - 战斗方式：先做完全自动战斗。
 - 词条获取：MVP 先自由选择。
-- 装备数量：每个小球固定 4 个词条。
+- 装备数量：每个小球固定 3 个词条。
 - 词条数量：MVP 第一批约 30 个。
 - 词条命名：双名称制，展示名后续可改。
 - 词条结构：主类型 + 多标签。
