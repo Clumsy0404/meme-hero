@@ -13,19 +13,30 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { BattleCanvas } from "../render/BattleCanvas";
+import { getBrowserBuildStorage, readSavedBuildState, writeSavedBuildState, type SavedBuildState } from "./build-storage";
 import { createBuildConfig, createMatchConfig, defaultBlueTraits, defaultRedTraits, presetEnemies, type PresetEnemy } from "./match";
 
 const traitTypes: TraitType[] = ["attribute", "collision", "projectile", "summon", "status", "rule"];
 const traitById = new Map<TraitId, TraitDefinition>(traitDefinitions.map((trait) => [trait.id, trait]));
 const defaultPresetEnemy = presetEnemies[0] as PresetEnemy;
+const defaultSavedBuildState: SavedBuildState = {
+  version: "0.1",
+  battleMode: "challenge",
+  selectedPresetId: defaultPresetEnemy.id,
+  blueTraits: defaultBlueTraits,
+  redTraits: defaultRedTraits
+};
 
-type BattleMode = "free" | "challenge";
+type BattleMode = SavedBuildState["battleMode"];
 
 export function App() {
-  const [battleMode, setBattleMode] = useState<BattleMode>("challenge");
-  const [selectedPresetId, setSelectedPresetId] = useState(defaultPresetEnemy.id);
-  const [blueTraits, setBlueTraits] = useState<TraitId[]>(defaultBlueTraits);
-  const [redTraits, setRedTraits] = useState<TraitId[]>(defaultRedTraits);
+  const [initialBuildState] = useState(() => readSavedBuildState(getBrowserBuildStorage(), defaultSavedBuildState));
+  const [battleMode, setBattleMode] = useState<BattleMode>(initialBuildState.battleMode);
+  const [selectedPresetId, setSelectedPresetId] = useState(
+    presetEnemies.some((preset) => preset.id === initialBuildState.selectedPresetId) ? initialBuildState.selectedPresetId : defaultPresetEnemy.id
+  );
+  const [blueTraits, setBlueTraits] = useState<TraitId[]>(initialBuildState.blueTraits);
+  const [redTraits, setRedTraits] = useState<TraitId[]>(initialBuildState.redTraits);
   const [restartToken, setRestartToken] = useState(0);
   const [snapshot, setSnapshot] = useState<WorldSnapshot | null>(null);
 
@@ -43,6 +54,16 @@ export function App() {
   const redStats = useMemo(() => (redValidation.ok ? createStatsForBuild(redBuild) : null), [redBuild, redValidation.ok]);
   const canBattle = blueValidation.ok && redValidation.ok;
   const match = useMemo(() => (canBattle ? createMatchConfig(blueBuild, redBuild) : null), [blueBuild, canBattle, redBuild]);
+
+  useEffect(() => {
+    writeSavedBuildState(getBrowserBuildStorage(), {
+      version: "0.1",
+      battleMode,
+      selectedPresetId,
+      blueTraits,
+      redTraits
+    });
+  }, [battleMode, blueTraits, redTraits, selectedPresetId]);
 
   useEffect(() => {
     setSnapshot(null);
