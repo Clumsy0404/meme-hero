@@ -1,0 +1,5 @@
+记忆库/
+node_modules/
+dist/
+.env
+.env.*
