@@ -3,6 +3,7 @@ import { createStatsForBuild, type WorldSnapshot } from "@ball-brawl/sim";
 import {
   TRAITS_PER_BUILD,
   type BallStats,
+  type BuildConfig,
   type BuildValidationResult,
   type Team,
   type TraitDefinition,
@@ -12,19 +13,30 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { BattleCanvas } from "../render/BattleCanvas";
-import { createBuildConfig, createMatchConfig, defaultBlueTraits, defaultRedTraits } from "./match";
+import { createBuildConfig, createMatchConfig, defaultBlueTraits, defaultRedTraits, presetEnemies, type PresetEnemy } from "./match";
 
 const traitTypes: TraitType[] = ["attribute", "collision", "projectile", "summon", "status", "rule"];
 const traitById = new Map<TraitId, TraitDefinition>(traitDefinitions.map((trait) => [trait.id, trait]));
+const defaultPresetEnemy = presetEnemies[0] as PresetEnemy;
+
+type BattleMode = "free" | "challenge";
 
 export function App() {
+  const [battleMode, setBattleMode] = useState<BattleMode>("challenge");
+  const [selectedPresetId, setSelectedPresetId] = useState(defaultPresetEnemy.id);
   const [blueTraits, setBlueTraits] = useState<TraitId[]>(defaultBlueTraits);
   const [redTraits, setRedTraits] = useState<TraitId[]>(defaultRedTraits);
   const [restartToken, setRestartToken] = useState(0);
   const [snapshot, setSnapshot] = useState<WorldSnapshot | null>(null);
 
+  const selectedPreset = useMemo(
+    () => presetEnemies.find((preset) => preset.id === selectedPresetId) ?? defaultPresetEnemy,
+    [selectedPresetId]
+  );
+  const redTraitsForBattle = battleMode === "challenge" ? selectedPreset.traits : redTraits;
+  const redBuildName = battleMode === "challenge" ? selectedPreset.name : "红方小球";
   const blueBuild = useMemo(() => createBuildConfig("蓝方小球", "default_blue", blueTraits), [blueTraits]);
-  const redBuild = useMemo(() => createBuildConfig("红方小球", "default_red", redTraits), [redTraits]);
+  const redBuild = useMemo(() => createBuildConfig(redBuildName, "default_red", redTraitsForBattle), [redBuildName, redTraitsForBattle]);
   const blueValidation = useMemo(() => validateBuildConfig(blueBuild), [blueBuild]);
   const redValidation = useMemo(() => validateBuildConfig(redBuild), [redBuild]);
   const blueStats = useMemo(() => (blueValidation.ok ? createStatsForBuild(blueBuild) : null), [blueBuild, blueValidation.ok]);
@@ -48,6 +60,14 @@ export function App() {
     setRedTraits((current) => replaceTrait(current, slotIndex, traitId));
   }, []);
 
+  const handleModeChange = useCallback((nextMode: BattleMode) => {
+    setBattleMode(nextMode);
+  }, []);
+
+  const handlePresetChange = useCallback((presetId: string) => {
+    setSelectedPresetId(presetId);
+  }, []);
+
   const blue = snapshot?.balls.find((ball) => ball.team === "blue" && ball.role === "main");
   const red = snapshot?.balls.find((ball) => ball.team === "red" && ball.role === "main");
   const result = snapshot?.result;
@@ -56,9 +76,15 @@ export function App() {
     <main className="app-shell">
       <section className="dashboard">
         <aside className="builder-panel">
-          <p className="eyebrow">Phase 8</p>
+          <p className="eyebrow">Phase 9</p>
           <h1>小球乱斗</h1>
-          <p className="summary">双方固定装备 {TRAITS_PER_BUILD} 个词条，属性、碰撞、弹道、召唤、状态与规则机制已接入战斗结算。</p>
+          <p className="summary">自由对战与挑战预设敌人已接入，双方固定装备 {TRAITS_PER_BUILD} 个词条。</p>
+
+          <ModeSwitch mode={battleMode} onModeChange={handleModeChange} />
+
+          {battleMode === "challenge" ? (
+            <PresetSelector selectedPreset={selectedPreset} selectedPresetId={selectedPresetId} onPresetChange={handlePresetChange} />
+          ) : null}
 
           <BuildEditor
             label="蓝方"
@@ -70,9 +96,10 @@ export function App() {
           />
 
           <BuildEditor
-            label="红方"
+            disabled={battleMode === "challenge"}
+            label={battleMode === "challenge" ? selectedPreset.name : "红方"}
             team="red"
-            traits={redTraits}
+            traits={redTraitsForBattle}
             stats={redStats}
             validation={redValidation}
             onTraitChange={handleRedTraitChange}
@@ -130,6 +157,10 @@ export function App() {
                 <dd>{baseBallStats.collisionDamage}</dd>
               </div>
             </dl>
+
+            <MatchupSummary blueBuild={blueBuild} redBuild={redBuild} />
+
+            {result ? <ResultSummary blueBuild={blueBuild} redBuild={redBuild} result={result} /> : null}
           </section>
         </section>
 
@@ -139,7 +170,65 @@ export function App() {
   );
 }
 
+type ModeSwitchProps = {
+  mode: BattleMode;
+  onModeChange: (mode: BattleMode) => void;
+};
+
+function ModeSwitch({ mode, onModeChange }: ModeSwitchProps) {
+  return (
+    <div aria-label="对战模式" className="mode-switch">
+      <button
+        aria-pressed={mode === "challenge"}
+        className={`mode-button ${mode === "challenge" ? "active" : ""}`}
+        onClick={() => onModeChange("challenge")}
+        type="button"
+      >
+        挑战预设
+      </button>
+      <button
+        aria-pressed={mode === "free"}
+        className={`mode-button ${mode === "free" ? "active" : ""}`}
+        onClick={() => onModeChange("free")}
+        type="button"
+      >
+        自由对战
+      </button>
+    </div>
+  );
+}
+
+type PresetSelectorProps = {
+  selectedPreset: PresetEnemy;
+  selectedPresetId: string;
+  onPresetChange: (presetId: string) => void;
+};
+
+function PresetSelector({ selectedPreset, selectedPresetId, onPresetChange }: PresetSelectorProps) {
+  return (
+    <section className="preset-selector">
+      <label className="field-label" htmlFor="preset-enemy">
+        预设敌人
+      </label>
+      <select id="preset-enemy" onChange={(event) => onPresetChange(event.currentTarget.value)} value={selectedPresetId}>
+        {presetEnemies.map((preset) => (
+          <option key={preset.id} value={preset.id}>
+            {preset.name}
+          </option>
+        ))}
+      </select>
+      <div className="preset-copy">
+        <strong>{selectedPreset.name}</strong>
+        <span>{selectedPreset.subtitle}</span>
+        <p>{selectedPreset.description}</p>
+      </div>
+      <TraitChipList traits={selectedPreset.traits} />
+    </section>
+  );
+}
+
 type BuildEditorProps = {
+  disabled?: boolean;
   label: string;
   team: Team;
   traits: TraitId[];
@@ -148,9 +237,9 @@ type BuildEditorProps = {
   onTraitChange: (slotIndex: number, traitId: TraitId) => void;
 };
 
-function BuildEditor({ label, team, traits, stats, validation, onTraitChange }: BuildEditorProps) {
+function BuildEditor({ disabled = false, label, team, traits, stats, validation, onTraitChange }: BuildEditorProps) {
   return (
-    <section className={`build-editor ${team}`}>
+    <section className={`build-editor ${team} ${disabled ? "locked" : ""}`}>
       <header className="section-header">
         <h2>{label}构筑</h2>
         <span>{validation.ok ? "可出战" : "需调整"}</span>
@@ -162,7 +251,7 @@ function BuildEditor({ label, team, traits, stats, validation, onTraitChange }: 
           return (
             <label className="trait-slot" key={`${team}-${index}`}>
               <span>词条 {index + 1}</span>
-              <select onChange={(event) => onTraitChange(index, event.currentTarget.value)} value={traitId}>
+              <select disabled={disabled} onChange={(event) => onTraitChange(index, event.currentTarget.value)} value={traitId}>
                 {traitTypes.map((type) => (
                   <optgroup key={type} label={traitTypeLabels[type]}>
                     {traitDefinitions
@@ -191,6 +280,86 @@ function BuildEditor({ label, team, traits, stats, validation, onTraitChange }: 
         </ul>
       ) : null}
     </section>
+  );
+}
+
+type MatchupSummaryProps = {
+  blueBuild: BuildConfig;
+  redBuild: BuildConfig;
+};
+
+function MatchupSummary({ blueBuild, redBuild }: MatchupSummaryProps) {
+  return (
+    <section className="matchup-summary">
+      <header className="section-header compact">
+        <h2>出战构筑</h2>
+        <span>{TRAITS_PER_BUILD} 词条</span>
+      </header>
+      <div className="matchup-grid">
+        <BuildTraitSummary build={blueBuild} label="蓝方" team="blue" />
+        <BuildTraitSummary build={redBuild} label="红方" team="red" />
+      </div>
+    </section>
+  );
+}
+
+type BuildTraitSummaryProps = {
+  build: BuildConfig;
+  label: string;
+  team: Team;
+};
+
+function BuildTraitSummary({ build, label, team }: BuildTraitSummaryProps) {
+  return (
+    <section className={`build-trait-summary ${team}`}>
+      <h3>{label}</h3>
+      <strong>{build.name}</strong>
+      <TraitChipList traits={build.traits} />
+    </section>
+  );
+}
+
+type ResultSummaryProps = {
+  blueBuild: BuildConfig;
+  redBuild: BuildConfig;
+  result: NonNullable<WorldSnapshot["result"]>;
+};
+
+function ResultSummary({ blueBuild, redBuild, result }: ResultSummaryProps) {
+  const winnerLabel = result.winner === "draw" ? "平局" : result.winner === "blue" ? `${blueBuild.name} 获胜` : `${redBuild.name} 获胜`;
+  return (
+    <section className="result-summary">
+      <header className="section-header compact">
+        <h2>结算</h2>
+        <span>{winnerLabel}</span>
+      </header>
+      <dl className="result-grid">
+        <div>
+          <dt>时长</dt>
+          <dd>{result.duration.toFixed(1)}s</dd>
+        </div>
+        <div>
+          <dt>蓝方剩余</dt>
+          <dd>{formatNumber(result.blueRemainingHp, 1)}</dd>
+        </div>
+        <div>
+          <dt>红方剩余</dt>
+          <dd>{formatNumber(result.redRemainingHp, 1)}</dd>
+        </div>
+      </dl>
+    </section>
+  );
+}
+
+function TraitChipList({ traits }: { traits: TraitId[] }) {
+  return (
+    <div className="trait-chip-list">
+      {traits.map((traitId, index) => (
+        <span className="trait-chip" key={`${traitId}-${index}`}>
+          {getTraitName(traitId)}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -274,6 +443,10 @@ function TraitLibrary() {
 
 function replaceTrait(traits: TraitId[], slotIndex: number, traitId: TraitId): TraitId[] {
   return traits.map((current, index) => (index === slotIndex ? traitId : current));
+}
+
+function getTraitName(traitId: TraitId): string {
+  return traitById.get(traitId)?.name ?? traitId;
 }
 
 function formatNumber(value: number, precision = 0): string {
