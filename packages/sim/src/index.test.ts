@@ -287,8 +287,8 @@ describe("sim bootstrap", () => {
     if (!damageEvent || damageEvent.type !== "damage") {
       throw new Error("Expected projectile damage");
     }
-    expect(damageEvent.amount).toBeCloseTo(5.2);
-    expect(red.hp).toBeCloseTo(red.stats.maxHp - 5.2);
+    expect(damageEvent.amount).toBeCloseTo(2.6);
+    expect(red.hp).toBeCloseTo(red.stats.maxHp - 2.6);
     expect(world.projectiles).toHaveLength(0);
   });
 
@@ -340,7 +340,7 @@ describe("sim bootstrap", () => {
 
     stepBattle(world, 1 / 60, 0);
 
-    expect(red.hp).toBeCloseTo(red.stats.maxHp - 4);
+    expect(red.hp).toBeCloseTo(red.stats.maxHp - 2);
     expect(world.projectiles).toHaveLength(1);
     expect(world.projectiles[0]?.hitBallIds).toContain(red.id);
   });

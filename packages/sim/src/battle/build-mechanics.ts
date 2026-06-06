@@ -25,7 +25,7 @@ const emptyCollisionMechanics: CollisionMechanics = {
 
 const baseProjectileMechanics: ProjectileMechanics = {
   enabled: false,
-  damage: 4,
+  damage: 2,
   cooldown: 1.1,
   speed: 340,
   radius: 12,
@@ -52,7 +52,7 @@ const emptySummonMechanics: SummonMechanics = {
   turretLifetime: 0,
   turretHp: 18,
   turretRadius: 36,
-  turretProjectileDamage: 3,
+  turretProjectileDamage: 1,
   turretProjectileCooldown: 1.8,
   turretProjectileSpeed: 280,
   turretProjectileRadius: 10,
