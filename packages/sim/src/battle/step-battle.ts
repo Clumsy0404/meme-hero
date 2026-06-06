@@ -549,7 +549,7 @@ function resolveSpecialElbowCollisions(world: BattleWorldState): void {
       if (!target.alive || target.team === source.team || !canDamagePair(source, target)) {
         continue;
       }
-      const currentDistance = distancePointToSegment(target.position, hitbox.start, hitbox.end);
+      const currentDistance = distanceToBentElbowHitbox(target.position, hitbox);
       if (currentDistance <= target.stats.radius + hitbox.radius && currentDistance < nearestDistance) {
         nearestTarget = target;
         nearestDistance = currentDistance;
@@ -923,7 +923,7 @@ function getSpecialElbowDirection(ball: BallState): Vec2 {
   return normalize(ball.runtime.specialElbowDirection, normalize(ball.velocity, { x: ball.team === "blue" ? 1 : -1, y: 0 }));
 }
 
-function getSpecialElbowHitbox(ball: BallState): { start: Vec2; end: Vec2; radius: number } | undefined {
+function getSpecialElbowHitbox(ball: BallState): { root: Vec2; joint: Vec2; foldEnd: Vec2; radius: number } | undefined {
   const { elbowHitboxRangeMultiplier, elbowHitboxRadiusMultiplier } = ball.mechanics.special;
   const reach = ball.stats.radius * elbowHitboxRangeMultiplier;
   const radius = ball.stats.radius * elbowHitboxRadiusMultiplier;
@@ -932,9 +932,15 @@ function getSpecialElbowHitbox(ball: BallState): { start: Vec2; end: Vec2; radiu
   }
 
   const direction = getSpecialElbowDirection(ball);
+  const bendSide = ball.team === "blue" ? -1 : 1;
+  const normal = scale({ x: -direction.y, y: direction.x }, bendSide);
+  const root = add(ball.position, add(scale(direction, ball.stats.radius * 0.42), scale(normal, ball.stats.radius * 0.18)));
+  const joint = add(ball.position, add(scale(direction, ball.stats.radius + reach * 0.72), scale(normal, ball.stats.radius * 0.52)));
+  const foldEnd = add(ball.position, add(scale(direction, ball.stats.radius + reach * 0.34), scale(normal, ball.stats.radius * 1.18)));
   return {
-    start: add(ball.position, scale(direction, ball.stats.radius * 0.35)),
-    end: add(ball.position, scale(direction, ball.stats.radius + reach)),
+    root,
+    joint,
+    foldEnd,
     radius
   };
 }
@@ -1677,6 +1683,17 @@ function distancePointToSegment(point: Vec2, a: Vec2, b: Vec2): number {
   const ap = sub(point, a);
   const t = clamp((ap.x * ab.x + ap.y * ab.y) / abLengthSq, 0, 1);
   return distance(point, add(a, scale(ab, t)));
+}
+
+function distanceToBentElbowHitbox(
+  point: Vec2,
+  hitbox: { root: Vec2; joint: Vec2; foldEnd: Vec2; radius: number }
+): number {
+  return Math.min(
+    distancePointToSegment(point, hitbox.root, hitbox.joint),
+    distancePointToSegment(point, hitbox.joint, hitbox.foldEnd),
+    distance(point, hitbox.joint)
+  );
 }
 
 function rotate(v: Vec2, radians: number): Vec2 {

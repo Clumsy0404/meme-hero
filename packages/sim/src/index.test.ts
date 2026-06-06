@@ -529,7 +529,7 @@ describe("sim bootstrap", () => {
     stepBattle(world, 1 / 60, 0);
 
     expect(blue.velocity.x).toBeGreaterThan(0);
-    expect(Math.hypot(blue.velocity.x, blue.velocity.y)).toBeCloseTo(blue.stats.moveSpeed * 2);
+    expect(Math.hypot(blue.velocity.x, blue.velocity.y)).toBeCloseTo(blue.stats.moveSpeed * 3);
     const snapshot = getSnapshot(world);
     expect(snapshot.balls[0]?.specialElbowRemaining).toBeGreaterThan(0);
     expect(snapshot.balls[0]?.specialElbowRange).toBeGreaterThan(0);
@@ -574,6 +574,35 @@ describe("sim bootstrap", () => {
     expect(blue.runtime.specialElbowWindowRemaining).toBeGreaterThan(0);
     expect(blue.runtime.specialElbowHitAvailable).toBe(false);
     expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "elbow_hit")).toBe(true);
+  });
+
+  it("only applies special elbow strike damage once per window", () => {
+    const world = createBattle(
+      makeMatch(["special_elbow_strike", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 360, height: 180 }
+    );
+    const [blue, red] = placeSeparatedMainBalls(world, 60, 180, 90);
+    blue.runtime.specialElbowCooldown = 0;
+    blue.runtime.specialElbowWindowRemaining = 2;
+    blue.runtime.specialElbowDirection = { x: 1, y: 0 };
+    blue.runtime.specialElbowHitAvailable = true;
+    red.stats.collisionDamage = 0;
+
+    stepBattle(world, 1 / 60, 0);
+    const hpAfterFirstHit = red.hp;
+    blue.position = { x: 60, y: 90 };
+    red.position = { x: 180, y: 90 };
+    blue.velocity = { x: 0, y: 0 };
+    red.velocity = { x: 0, y: 0 };
+    blue.collisionTimers = {};
+    red.collisionTimers = {};
+
+    stepBattle(world, 1 / 60, 0);
+
+    expect(red.hp).toBeCloseTo(hpAfterFirstHit);
+    expect(blue.runtime.specialElbowWindowRemaining).toBeGreaterThan(0);
+    expect(blue.runtime.specialElbowHitAvailable).toBe(false);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "elbow_hit")).toBe(false);
   });
 
   it("fires special basketball projectiles after their cooldown", () => {

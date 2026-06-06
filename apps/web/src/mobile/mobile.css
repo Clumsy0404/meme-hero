@@ -1291,22 +1291,51 @@
   left: 50%;
   z-index: 1;
   width: var(--elbowLen);
-  height: var(--elbowWidth);
+  height: calc(var(--elbowWidth) * 3.8);
   pointer-events: none;
   background:
-    repeating-linear-gradient(0deg, transparent 0 4px, #ffffff16 4px 5px),
-    linear-gradient(90deg, #050505 0 72%, #151515 72%);
-  border: 2px solid #000;
-  border-radius: 2px 7px 7px 2px;
-  box-shadow: 0 0 0 2px #ffffff18, 0 0 14px #ffd23f66;
-  transform: rotate(var(--angle)) translate(var(--elbowOffset), -50%);
+    radial-gradient(ellipse at 61% 34%, #030303 0 21%, #161616 22% 34%, transparent 36%),
+    radial-gradient(circle at 61% 34%, #ffffff18 0 9%, transparent 10%);
+  filter: drop-shadow(0 0 2px #000) drop-shadow(0 0 9px #ffd23f80);
+  transform: rotate(var(--angle)) translate(var(--elbowOffset), -50%) scaleY(var(--bendSign, 1));
   transform-origin: 0 50%;
   animation: vbtelbow 0.18s steps(2) infinite;
 }
 
+.vbt-elbow::before,
+.vbt-elbow::after {
+  position: absolute;
+  display: block;
+  height: var(--elbowWidth);
+  content: "";
+  background:
+    repeating-linear-gradient(0deg, transparent 0 4px, #ffffff14 4px 5px),
+    linear-gradient(90deg, #050505 0 72%, #171717 72%);
+  border: 2px solid #000;
+  border-radius: 999px 7px 7px 999px;
+  box-shadow: inset 0 2px 0 #ffffff10, inset 0 -2px 0 #0009;
+}
+
+.vbt-elbow::before {
+  top: 54%;
+  left: 0;
+  width: 69%;
+  transform: rotate(-24deg);
+  transform-origin: 0 50%;
+}
+
+.vbt-elbow::after {
+  top: 29%;
+  left: 58%;
+  width: 56%;
+  border-radius: 7px 999px 999px 7px;
+  transform: rotate(126deg);
+  transform-origin: 0 50%;
+}
+
 @keyframes vbtelbow {
   50% {
-    filter: brightness(1.45);
+    filter: brightness(1.45) drop-shadow(0 0 2px #000) drop-shadow(0 0 12px #ffd23faa);
   }
 }
 

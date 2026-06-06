@@ -975,9 +975,10 @@ function elbowStyle(combatant: MobileBattleSnapshot["combatants"][number]): Reac
 
   return {
     "--angle": `${Math.atan2(elbow.dy, elbow.dx)}rad`,
-    "--elbowLen": `${Math.max(22, elbow.range * 0.72)}px`,
-    "--elbowWidth": `${Math.max(12, elbow.radius * 0.9)}px`,
-    "--elbowOffset": `${Math.max(16, combatant.r * 0.52)}px`
+    "--bendSign": combatant.side === "me" ? -1 : 1,
+    "--elbowLen": `${Math.max(38, elbow.range * 1.02)}px`,
+    "--elbowWidth": `${Math.max(13, elbow.radius * 0.88)}px`,
+    "--elbowOffset": `${Math.max(16, combatant.r * 0.46)}px`
   } as React.CSSProperties;
 }
 

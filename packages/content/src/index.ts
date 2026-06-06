@@ -408,17 +408,17 @@ export const traitDefinitions: TraitDefinition[] = [
     mainType: "collision",
     tags: ["special", "collision", "damage", "knockback"],
     repeatRule: { kind: "unique" },
-    description: "每 10 秒进入 2 秒肘击突进，朝敌人冲刺并伸出黑色手肘，手肘或本体命中造成 1.5 倍碰撞伤害并提高击退。",
+    description: "每 10 秒进入 2 秒弯肘突进，朝敌人冲刺并伸出黑色手肘，窗口内只判定 1 次强化碰撞伤害。",
     numeric: {
       special: {
         elbowCooldown: 10,
         elbowWindow: 2,
         elbowDamageMultiplier: 1.5,
         elbowKnockbackMultiplier: 1.35,
-        elbowDashSpeedMultiplier: 2,
+        elbowDashSpeedMultiplier: 3,
         elbowDashTurnMultiplier: 4,
-        elbowHitboxRangeMultiplier: 1.2,
-        elbowHitboxRadiusMultiplier: 0.45
+        elbowHitboxRangeMultiplier: 1.35,
+        elbowHitboxRadiusMultiplier: 0.5
       }
     },
     behaviorKeys: ["special_elbow_strike"]
