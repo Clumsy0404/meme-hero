@@ -3,6 +3,7 @@ import { createStatsForBuild, type WorldSnapshot } from "@ball-brawl/sim";
 import {
   TRAITS_PER_BUILD,
   type BallStats,
+  type BattleBalanceOverrides,
   type BuildConfig,
   type BuildValidationResult,
   type Team,
@@ -15,6 +16,19 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { BattleCanvas } from "../render/BattleCanvas";
 import { decodeBuildArchive, encodeBuildArchive } from "./build-code";
 import { getBrowserBuildStorage, readSavedBuildState, writeSavedBuildState, type SavedBuildState } from "./build-storage";
+import {
+  createDefaultDesignerBalanceConfig,
+  decodeDesignerBalanceConfig,
+  encodeDesignerBalanceConfig,
+  getBrowserDesignerBalanceStorage,
+  normalizeDesignerBalanceConfig,
+  readDesignerBalanceConfig,
+  toBattleBalanceOverrides,
+  writeDesignerBalanceConfig,
+  type DesignerBalanceConfig,
+  type DesignerProjectileConfig,
+  type DesignerTurretConfig
+} from "./designer-balance";
 import { createBuildConfig, createMatchConfig, defaultBlueTraits, defaultRedTraits, presetEnemies, type PresetEnemy } from "./match";
 
 const traitTypes: TraitType[] = ["attribute", "collision", "projectile", "summon", "status", "rule"];
@@ -30,8 +44,38 @@ const defaultSavedBuildState: SavedBuildState = {
 
 type BattleMode = SavedBuildState["battleMode"];
 
+const baseStatFields = [
+  { key: "maxHp", label: "生命", min: 1, step: 1 },
+  { key: "radius", label: "半径", min: 1, step: 1 },
+  { key: "moveSpeed", label: "速度", min: 1, step: 5 },
+  { key: "collisionDamage", label: "撞伤", min: 0, step: 0.5 },
+  { key: "collisionCooldown", label: "撞击间隔", min: 0.05, step: 0.05 },
+  { key: "knockback", label: "击退", min: 0, step: 5 },
+  { key: "damageReduction", label: "减伤", min: 0, max: 0.95, step: 0.01 },
+  { key: "hpRegen", label: "回血", min: 0, step: 0.1 }
+] satisfies ReadonlyArray<{ key: keyof BallStats; label: string; min: number; max?: number; step: number }>;
+
+const projectileFields = [
+  { key: "damage", label: "伤害", min: 0, step: 0.1 },
+  { key: "cooldown", label: "冷却", min: 0.05, step: 0.05 },
+  { key: "speed", label: "速度", min: 1, step: 5 },
+  { key: "radius", label: "半径", min: 1, step: 1 },
+  { key: "lifetime", label: "寿命", min: 0.05, step: 0.1 }
+] satisfies ReadonlyArray<{ key: keyof DesignerProjectileConfig; label: string; min: number; step: number }>;
+
+const turretFields = [
+  { key: "turretHp", label: "炮台生命", min: 1, step: 1 },
+  { key: "turretRadius", label: "炮台半径", min: 1, step: 1 },
+  { key: "turretProjectileDamage", label: "子弹伤害", min: 0, step: 0.1 },
+  { key: "turretProjectileCooldown", label: "子弹冷却", min: 0.05, step: 0.05 },
+  { key: "turretProjectileSpeed", label: "子弹速度", min: 1, step: 5 },
+  { key: "turretProjectileRadius", label: "子弹半径", min: 1, step: 1 },
+  { key: "turretProjectileLifetime", label: "子弹寿命", min: 0.05, step: 0.1 }
+] satisfies ReadonlyArray<{ key: keyof DesignerTurretConfig; label: string; min: number; step: number }>;
+
 export function App() {
   const [initialBuildState] = useState(() => readSavedBuildState(getBrowserBuildStorage(), defaultSavedBuildState));
+  const [initialDesignerConfig] = useState(() => readDesignerBalanceConfig(getBrowserDesignerBalanceStorage()));
   const [battleMode, setBattleMode] = useState<BattleMode>(initialBuildState.battleMode);
   const [selectedPresetId, setSelectedPresetId] = useState(
     presetEnemies.some((preset) => preset.id === initialBuildState.selectedPresetId) ? initialBuildState.selectedPresetId : defaultPresetEnemy.id
@@ -40,6 +84,12 @@ export function App() {
   const [redTraits, setRedTraits] = useState<TraitId[]>(initialBuildState.redTraits);
   const [buildArchiveText, setBuildArchiveText] = useState("");
   const [buildArchiveMessage, setBuildArchiveMessage] = useState("未生成构筑码");
+  const [designerModeEnabled, setDesignerModeEnabled] = useState(false);
+  const [designerConfig, setDesignerConfig] = useState<DesignerBalanceConfig>(initialDesignerConfig);
+  const [designerArchiveText, setDesignerArchiveText] = useState("");
+  const [designerArchiveMessage, setDesignerArchiveMessage] = useState("修改后重开生效");
+  const [appliedBalanceOverrides, setAppliedBalanceOverrides] = useState<BattleBalanceOverrides | undefined>(undefined);
+  const [isPaused, setIsPaused] = useState(false);
   const [restartToken, setRestartToken] = useState(0);
   const [snapshot, setSnapshot] = useState<WorldSnapshot | null>(null);
 
@@ -53,10 +103,21 @@ export function App() {
   const redBuild = useMemo(() => createBuildConfig(redBuildName, "default_red", redTraitsForBattle), [redBuildName, redTraitsForBattle]);
   const blueValidation = useMemo(() => validateBuildConfig(blueBuild), [blueBuild]);
   const redValidation = useMemo(() => validateBuildConfig(redBuild), [redBuild]);
-  const blueStats = useMemo(() => (blueValidation.ok ? createStatsForBuild(blueBuild) : null), [blueBuild, blueValidation.ok]);
-  const redStats = useMemo(() => (redValidation.ok ? createStatsForBuild(redBuild) : null), [redBuild, redValidation.ok]);
+  const previewBalanceOverrides = useMemo(
+    () => (designerModeEnabled ? toBattleBalanceOverrides(designerConfig) : undefined),
+    [designerConfig, designerModeEnabled]
+  );
+  const blueStats = useMemo(
+    () => (blueValidation.ok ? createStatsForBuild(blueBuild, undefined, previewBalanceOverrides) : null),
+    [blueBuild, blueValidation.ok, previewBalanceOverrides]
+  );
+  const redStats = useMemo(
+    () => (redValidation.ok ? createStatsForBuild(redBuild, undefined, previewBalanceOverrides) : null),
+    [redBuild, redValidation.ok, previewBalanceOverrides]
+  );
   const canBattle = blueValidation.ok && redValidation.ok;
   const match = useMemo(() => (canBattle ? createMatchConfig(blueBuild, redBuild) : null), [blueBuild, canBattle, redBuild]);
+  const displayedBaseStats = designerModeEnabled ? designerConfig.baseStats : baseBallStats;
 
   useEffect(() => {
     writeSavedBuildState(getBrowserBuildStorage(), {
@@ -67,6 +128,10 @@ export function App() {
       redTraits
     });
   }, [battleMode, blueTraits, redTraits, selectedPresetId]);
+
+  useEffect(() => {
+    writeDesignerBalanceConfig(getBrowserDesignerBalanceStorage(), designerConfig);
+  }, [designerConfig]);
 
   useEffect(() => {
     setSnapshot(null);
@@ -120,6 +185,102 @@ export function App() {
     [buildArchiveText]
   );
 
+  const handleRestart = useCallback(() => {
+    setAppliedBalanceOverrides(designerModeEnabled ? toBattleBalanceOverrides(designerConfig) : undefined);
+    setSnapshot(null);
+    setIsPaused(false);
+    setRestartToken((value) => value + 1);
+  }, [designerConfig, designerModeEnabled]);
+
+  const handleTogglePause = useCallback(() => {
+    setIsPaused((current) => !current);
+  }, []);
+
+  const handleDesignerModeToggle = useCallback(() => {
+    setDesignerModeEnabled((current) => !current);
+  }, []);
+
+  const handleBaseStatChange = useCallback((key: keyof BallStats, value: number) => {
+    if (!Number.isFinite(value)) {
+      return;
+    }
+
+    setDesignerConfig((current) =>
+      normalizeDesignerBalanceConfig(
+        {
+          ...current,
+          baseStats: {
+            ...current.baseStats,
+            [key]: value
+          }
+        },
+        current
+      )
+    );
+    setDesignerArchiveMessage("修改后重开生效");
+  }, []);
+
+  const handleProjectileChange = useCallback((key: keyof DesignerProjectileConfig, value: number) => {
+    if (!Number.isFinite(value)) {
+      return;
+    }
+
+    setDesignerConfig((current) =>
+      normalizeDesignerBalanceConfig(
+        {
+          ...current,
+          projectile: {
+            ...current.projectile,
+            [key]: value
+          }
+        },
+        current
+      )
+    );
+    setDesignerArchiveMessage("修改后重开生效");
+  }, []);
+
+  const handleTurretChange = useCallback((key: keyof DesignerTurretConfig, value: number) => {
+    if (!Number.isFinite(value)) {
+      return;
+    }
+
+    setDesignerConfig((current) =>
+      normalizeDesignerBalanceConfig(
+        {
+          ...current,
+          turret: {
+            ...current.turret,
+            [key]: value
+          }
+        },
+        current
+      )
+    );
+    setDesignerArchiveMessage("修改后重开生效");
+  }, []);
+
+  const handleResetDesignerConfig = useCallback(() => {
+    setDesignerConfig(createDefaultDesignerBalanceConfig());
+    setDesignerArchiveMessage("已恢复默认，重开生效");
+  }, []);
+
+  const handleExportDesignerConfig = useCallback(() => {
+    setDesignerArchiveText(encodeDesignerBalanceConfig(designerConfig));
+    setDesignerArchiveMessage("调参配置已导出");
+  }, [designerConfig]);
+
+  const handleImportDesignerConfig = useCallback(() => {
+    const result = decodeDesignerBalanceConfig(designerArchiveText, designerConfig);
+    if (!result.ok) {
+      setDesignerArchiveMessage(result.message);
+      return;
+    }
+
+    setDesignerConfig(result.config);
+    setDesignerArchiveMessage("调参配置已导入，重开生效");
+  }, [designerArchiveText, designerConfig]);
+
   const blue = snapshot?.balls.find((ball) => ball.team === "blue" && ball.role === "main");
   const red = snapshot?.balls.find((ball) => ball.team === "red" && ball.role === "main");
   const result = snapshot?.result;
@@ -166,15 +327,55 @@ export function App() {
             text={buildArchiveText}
           />
 
-          <button className="primary-button" disabled={!canBattle} onClick={() => setRestartToken((value) => value + 1)} type="button">
-            重新开始
-          </button>
+          <section className="battle-control-panel">
+            <header className="section-header compact">
+              <h2>战斗控制</h2>
+              <span>{isPaused ? "已暂停" : "运行中"}</span>
+            </header>
+            <div className="battle-actions">
+              <button className="secondary-button" disabled={!match} onClick={handleTogglePause} type="button">
+                {isPaused ? "继续" : "暂停"}
+              </button>
+              <button className="primary-button" disabled={!canBattle} onClick={handleRestart} type="button">
+                重新开始
+              </button>
+            </div>
+            <button
+              aria-pressed={designerModeEnabled}
+              className={`secondary-button full-width ${designerModeEnabled ? "active" : ""}`}
+              onClick={handleDesignerModeToggle}
+              type="button"
+            >
+              {designerModeEnabled ? "关闭设计者模式" : "打开设计者模式"}
+            </button>
+          </section>
+
+          {designerModeEnabled ? (
+            <DesignerBalancePanel
+              archiveText={designerArchiveText}
+              config={designerConfig}
+              message={designerArchiveMessage}
+              onArchiveTextChange={setDesignerArchiveText}
+              onBaseStatChange={handleBaseStatChange}
+              onExport={handleExportDesignerConfig}
+              onImport={handleImportDesignerConfig}
+              onProjectileChange={handleProjectileChange}
+              onReset={handleResetDesignerConfig}
+              onTurretChange={handleTurretChange}
+            />
+          ) : null}
         </aside>
 
         <section className="battle-column">
           <section className="battle-panel">
             {match ? (
-              <BattleCanvas match={match} onSnapshot={handleSnapshot} restartToken={restartToken} />
+              <BattleCanvas
+                balanceOverrides={appliedBalanceOverrides}
+                match={match}
+                onSnapshot={handleSnapshot}
+                paused={isPaused}
+                restartToken={restartToken}
+              />
             ) : (
               <div className="battle-placeholder">
                 <strong>构筑校验未通过</strong>
@@ -200,22 +401,26 @@ export function App() {
               <div className="result-panel">
                 <span>战斗时间</span>
                 <strong>{(snapshot?.time ?? 0).toFixed(1)}s</strong>
-                {result ? <p>{result.winner === "draw" ? "平局" : `${result.winner === "blue" ? "蓝方" : "红方"}获胜`}</p> : <p>战斗中</p>}
+                {result ? (
+                  <p>{result.winner === "draw" ? "平局" : `${result.winner === "blue" ? "蓝方" : "红方"}获胜`}</p>
+                ) : (
+                  <p>{isPaused ? "已暂停" : "战斗中"}</p>
+                )}
               </div>
             </div>
 
             <dl className="base-grid">
               <div>
                 <dt>基础生命</dt>
-                <dd>{baseBallStats.maxHp}</dd>
+                <dd>{formatNumber(displayedBaseStats.maxHp)}</dd>
               </div>
               <div>
                 <dt>基础速度</dt>
-                <dd>{baseBallStats.moveSpeed}</dd>
+                <dd>{formatNumber(displayedBaseStats.moveSpeed)}</dd>
               </div>
               <div>
                 <dt>碰撞伤害</dt>
-                <dd>{baseBallStats.collisionDamage}</dd>
+                <dd>{formatNumber(displayedBaseStats.collisionDamage, 1)}</dd>
               </div>
             </dl>
 
@@ -268,6 +473,137 @@ function BuildArchivePanel({ message, redImportDisabled, text, onExport, onImpor
         </button>
       </div>
     </section>
+  );
+}
+
+type DesignerBalancePanelProps = {
+  archiveText: string;
+  config: DesignerBalanceConfig;
+  message: string;
+  onArchiveTextChange: (text: string) => void;
+  onBaseStatChange: (key: keyof BallStats, value: number) => void;
+  onExport: () => void;
+  onImport: () => void;
+  onProjectileChange: (key: keyof DesignerProjectileConfig, value: number) => void;
+  onReset: () => void;
+  onTurretChange: (key: keyof DesignerTurretConfig, value: number) => void;
+};
+
+function DesignerBalancePanel({
+  archiveText,
+  config,
+  message,
+  onArchiveTextChange,
+  onBaseStatChange,
+  onExport,
+  onImport,
+  onProjectileChange,
+  onReset,
+  onTurretChange
+}: DesignerBalancePanelProps) {
+  return (
+    <section className="designer-panel">
+      <header className="section-header compact">
+        <h2>设计者模式</h2>
+        <span>{message}</span>
+      </header>
+
+      <section className="designer-number-section">
+        <h3>基础小球</h3>
+        <div className="designer-grid">
+          {baseStatFields.map((field) => (
+            <NumberField
+              key={field.key}
+              label={field.label}
+              max={"max" in field ? field.max : undefined}
+              min={field.min}
+              onChange={(value) => onBaseStatChange(field.key, value)}
+              step={field.step}
+              value={config.baseStats[field.key]}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section className="designer-number-section">
+        <h3>基础远程子弹</h3>
+        <div className="designer-grid">
+          {projectileFields.map((field) => (
+            <NumberField
+              key={field.key}
+              label={field.label}
+              max={undefined}
+              min={field.min}
+              onChange={(value) => onProjectileChange(field.key, value)}
+              step={field.step}
+              value={config.projectile[field.key]}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section className="designer-number-section">
+        <h3>炮台参数</h3>
+        <div className="designer-grid">
+          {turretFields.map((field) => (
+            <NumberField
+              key={field.key}
+              label={field.label}
+              max={undefined}
+              min={field.min}
+              onChange={(value) => onTurretChange(field.key, value)}
+              step={field.step}
+              value={config.turret[field.key]}
+            />
+          ))}
+        </div>
+      </section>
+
+      <div className="designer-actions">
+        <button className="secondary-button" onClick={onReset} type="button">
+          恢复默认
+        </button>
+        <button className="secondary-button" onClick={onExport} type="button">
+          导出配置
+        </button>
+        <button className="secondary-button" onClick={onImport} type="button">
+          导入配置
+        </button>
+      </div>
+
+      <textarea
+        aria-label="调参配置 JSON"
+        className="designer-json-area"
+        onChange={(event) => onArchiveTextChange(event.currentTarget.value)}
+        spellCheck={false}
+        value={archiveText}
+      />
+    </section>
+  );
+}
+
+type NumberFieldProps = {
+  label: string;
+  max: number | undefined;
+  min: number;
+  step: number;
+  value: number;
+  onChange: (value: number) => void;
+};
+
+function NumberField({ label, max, min, step, value, onChange }: NumberFieldProps) {
+  return (
+    <label className="designer-number-field">
+      <span>{label}</span>
+      <input
+        max={max}
+        min={min}
+        onChange={(event) => onChange(event.currentTarget.valueAsNumber)}
+        step={step}
+        type="number"
+        value={formatInputNumber(value)}
+      />
+    </label>
   );
 }
 
@@ -552,4 +888,8 @@ function getTraitName(traitId: TraitId): string {
 
 function formatNumber(value: number, precision = 0): string {
   return value.toFixed(precision).replace(/\.0$/, "");
+}
+
+function formatInputNumber(value: number): string {
+  return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(3)));
 }

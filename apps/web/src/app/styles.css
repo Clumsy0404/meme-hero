@@ -19,6 +19,7 @@ body {
 
 button,
 select,
+input,
 textarea {
   font: inherit;
 }
@@ -221,6 +222,131 @@ h1 {
   color: #6f7a84;
   border-color: #2a3035;
   cursor: not-allowed;
+}
+
+.battle-control-panel,
+.designer-panel {
+  display: grid;
+  gap: 10px;
+  padding: 14px 0 16px;
+  border-top: 1px solid #2a2f34;
+}
+
+.battle-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.battle-actions .primary-button {
+  margin-top: 0;
+}
+
+.secondary-button {
+  min-width: 0;
+  min-height: 38px;
+  border: 1px solid #343b42;
+  border-radius: 6px;
+  color: #dbe5ee;
+  background: #181a1b;
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.secondary-button:hover {
+  border-color: #7dd3fc;
+  color: #f7fbff;
+}
+
+.secondary-button.active {
+  border-color: #7dd3fc;
+  color: #071016;
+  background: #7dd3fc;
+}
+
+.secondary-button:disabled {
+  color: #6f7a84;
+  border-color: #2a3035;
+  cursor: not-allowed;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.designer-number-section {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #2a3035;
+  border-radius: 6px;
+  background: #111314;
+}
+
+.designer-number-section h3 {
+  color: #7dd3fc;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.designer-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.designer-number-field {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.designer-number-field span {
+  color: #9aa7b3;
+  font-size: 12px;
+}
+
+.designer-number-field input {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  border: 1px solid #343b42;
+  border-radius: 6px;
+  padding: 6px 8px;
+  color: #f4f7fb;
+  background: #181a1b;
+  outline: none;
+}
+
+.designer-number-field input:focus {
+  border-color: #7dd3fc;
+}
+
+.designer-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.designer-json-area {
+  width: 100%;
+  min-height: 112px;
+  resize: vertical;
+  border: 1px solid #343b42;
+  border-radius: 6px;
+  padding: 9px 10px;
+  color: #f4f7fb;
+  background: #111314;
+  font-family: "Cascadia Mono", "Consolas", monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  outline: none;
+}
+
+.designer-json-area:focus {
+  border-color: #7dd3fc;
 }
 
 .field-label {
@@ -600,6 +726,7 @@ h1 {
 
   .scoreboard,
   .base-grid,
+  .designer-actions,
   .matchup-grid,
   .result-grid {
     grid-template-columns: 1fr;
@@ -621,5 +748,10 @@ h1 {
 
   .stat-preview {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .battle-actions,
+  .designer-grid {
+    grid-template-columns: 1fr;
   }
 }

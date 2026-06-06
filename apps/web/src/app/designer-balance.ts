@@ -145,7 +145,7 @@ export function normalizeDesignerBalanceConfig(
   };
 }
 
-function normalizeNumberMap<T extends Record<string, number>>(
+function normalizeNumberMap<T extends { [K in keyof T]: number }>(
   value: unknown,
   fallback: T,
   boundsByKey: Record<keyof T, NumericBounds>
@@ -157,7 +157,7 @@ function normalizeNumberMap<T extends Record<string, number>>(
   const normalized = { ...fallback };
   for (const key of Object.keys(boundsByKey) as Array<keyof T>) {
     const bounds = boundsByKey[key];
-    normalized[key] = readBoundedNumber(value[String(key)], fallback[key], bounds.min, bounds.max);
+    normalized[key] = readBoundedNumber(value[String(key)], fallback[key], bounds.min, bounds.max) as T[typeof key];
   }
   return normalized;
 }

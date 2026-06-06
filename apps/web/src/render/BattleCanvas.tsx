@@ -8,12 +8,14 @@ import {
   type BattleWorldState,
   type WorldSnapshot
 } from "@ball-brawl/sim";
-import type { MatchConfig, Team } from "@ball-brawl/shared";
+import type { BattleBalanceOverrides, MatchConfig, Team } from "@ball-brawl/shared";
 import { Application, Container, Graphics, Text } from "pixi.js";
 import { useEffect, useRef } from "react";
 
 type BattleCanvasProps = {
   match: MatchConfig;
+  balanceOverrides: BattleBalanceOverrides | undefined;
+  paused: boolean;
   restartToken: number;
   onSnapshot: (snapshot: WorldSnapshot) => void;
 };
@@ -31,8 +33,13 @@ const statusColors: Record<string, number> = {
   vulnerable: 0xf472b6
 };
 
-export function BattleCanvas({ match, restartToken, onSnapshot }: BattleCanvasProps) {
+export function BattleCanvas({ balanceOverrides, match, paused, restartToken, onSnapshot }: BattleCanvasProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const pausedRef = useRef(paused);
+
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
 
   useEffect(() => {
     let disposed = false;
@@ -62,7 +69,7 @@ export function BattleCanvas({ match, restartToken, onSnapshot }: BattleCanvasPr
 
       mountedApp = app;
       hostRef.current.replaceChildren(app.canvas);
-      world = createBattle(match);
+      world = createBattle(match, DEFAULT_ARENA, balanceOverrides);
       const initialSnapshot = getSnapshot(world);
       drawSnapshot(app.stage, initialSnapshot);
       app.render();
@@ -70,6 +77,13 @@ export function BattleCanvas({ match, restartToken, onSnapshot }: BattleCanvasPr
 
       const loop = (now: number) => {
         if (disposed || !app || !world) {
+          return;
+        }
+
+        if (pausedRef.current) {
+          lastTime = now;
+          accumulator = 0;
+          animationFrame = window.requestAnimationFrame(loop);
           return;
         }
 
@@ -99,7 +113,7 @@ export function BattleCanvas({ match, restartToken, onSnapshot }: BattleCanvasPr
       window.cancelAnimationFrame(animationFrame);
       disposeApplication(mountedApp);
     };
-  }, [match, onSnapshot, restartToken]);
+  }, [balanceOverrides, match, onSnapshot, restartToken]);
 
   return <div className="battle-canvas" ref={hostRef} />;
 }
