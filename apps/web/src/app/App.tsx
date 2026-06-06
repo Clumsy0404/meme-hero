@@ -13,6 +13,7 @@ import {
 } from "@ball-brawl/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { MobileApp } from "../mobile/MobileApp";
 import { BattleCanvas } from "../render/BattleCanvas";
 import { decodeBuildArchive, encodeBuildArchive } from "./build-code";
 import { getBrowserBuildStorage, readSavedBuildState, writeSavedBuildState, type SavedBuildState } from "./build-storage";
@@ -76,6 +77,20 @@ const turretFields = [
 ] satisfies ReadonlyArray<{ key: keyof DesignerTurretConfig; label: string; min: number; step: number }>;
 
 export function App() {
+  const [mode, setMode] = useState<"player" | "developer">("player");
+
+  if (mode === "player") {
+    return <MobileApp onOpenDeveloper={() => setMode("developer")} />;
+  }
+
+  return <DeveloperApp onBackToPlayer={() => setMode("player")} />;
+}
+
+type DeveloperAppProps = {
+  onBackToPlayer: () => void;
+};
+
+function DeveloperApp({ onBackToPlayer }: DeveloperAppProps) {
   const [initialBuildState] = useState(() => readSavedBuildState(getBrowserBuildStorage(), defaultSavedBuildState));
   const [initialDesignerConfig] = useState(() => readDesignerBalanceConfig(getBrowserDesignerBalanceStorage()));
   const [battleMode, setBattleMode] = useState<BattleMode>(initialBuildState.battleMode);
@@ -319,6 +334,9 @@ export function App() {
           <p className="eyebrow">Phase 9</p>
           <h1>小球乱斗</h1>
           <p className="summary">自由对战与挑战预设敌人已接入，双方固定装备 {TRAITS_PER_BUILD} 个词条。</p>
+          <button className="secondary-button full-width" onClick={onBackToPlayer} type="button">
+            返回玩家入口
+          </button>
 
           <ModeSwitch mode={battleMode} onModeChange={handleModeChange} />
 
