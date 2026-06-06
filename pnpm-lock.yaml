@@ -26,6 +26,9 @@ importers:
       '@ball-brawl/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@ball-brawl/sim':
+        specifier: workspace:*
+        version: link:../../packages/sim
       pixi.js:
         specifier: ^8.14.3
         version: 8.19.0
