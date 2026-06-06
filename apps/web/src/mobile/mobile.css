@@ -1268,6 +1268,17 @@
   position: relative;
 }
 
+.vbt-ball-img {
+  display: block;
+  width: var(--bs);
+  height: var(--bs);
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 0 #0008) drop-shadow(0 0 8px color-mix(in srgb, var(--ec) 52%, transparent));
+  pointer-events: none;
+  user-select: none;
+}
+
 .vbt-summon {
   opacity: 0.82;
 }
@@ -1292,6 +1303,16 @@
   animation: vbtstatus 0.68s steps(2) infinite;
 }
 
+.vbt-ball-ring.special {
+  inset: -8px;
+  border-style: dashed;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--status) 70%, transparent);
+}
+
+.vbt-ball-ring.hajimiGuard {
+  border-radius: 999px;
+}
+
 @keyframes vbtstatus {
   50% {
     opacity: 0.26;
@@ -1300,9 +1321,21 @@
 
 .vbt-proj {
   z-index: 4;
-  width: 6px;
-  height: 6px;
+  width: var(--pr, 6px);
+  height: var(--pr, 6px);
+  border-radius: 999px;
   box-shadow: 0 0 6px 1px currentColor;
+}
+
+.vbt-proj.basketball {
+  background:
+    linear-gradient(90deg, transparent 43%, #4a2106 43% 57%, transparent 57%),
+    linear-gradient(0deg, transparent 43%, #4a2106 43% 57%, transparent 57%),
+    radial-gradient(circle at 35% 28%, #ffe08a 0 12%, transparent 13%),
+    #f97316 !important;
+  border: 1px solid #4a2106;
+  color: #f97316 !important;
+  box-shadow: 0 0 8px 2px #ffb627aa;
 }
 
 .vbt-float {

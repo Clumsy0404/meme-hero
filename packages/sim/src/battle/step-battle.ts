@@ -8,6 +8,7 @@ import type {
   BattleResult,
   BattleWorldState,
   DamageTag,
+  ProjectileKind,
   ProjectileState,
   StatusApplicationMechanics,
   TurretState
@@ -39,9 +40,11 @@ export function stepBattle(
   }
 
   updateRules(world, dt);
+  updateSpecials(world, dt);
   updateBalls(world, dt, chaseStrength);
   updateSummons(world);
   fireProjectiles(world);
+  fireSpecialBasketballs(world);
   updateTurrets(world, dt);
   updateProjectiles(world, dt);
   resolveBallCollisions(world);
@@ -193,7 +196,14 @@ function updateTurrets(world: BattleWorldState, dt: number): void {
   world.turrets = activeTurrets;
 }
 
-function spawnProjectile(world: BattleWorldState, owner: BallState, direction: Vec2, isChild: boolean, addToWorld = true): ProjectileState {
+function spawnProjectile(
+  world: BattleWorldState,
+  owner: BallState,
+  direction: Vec2,
+  isChild: boolean,
+  addToWorld = true,
+  kind: ProjectileKind = isChild ? "child" : "basic"
+): ProjectileState {
   const mechanics = owner.mechanics.projectile;
   const radius = isChild ? mechanics.radius * mechanics.childRadiusMultiplier : mechanics.radius;
   const speed = isChild ? mechanics.speed * 0.82 : mechanics.speed;
@@ -201,6 +211,7 @@ function spawnProjectile(world: BattleWorldState, owner: BallState, direction: V
     id: `projectile-${world.nextEntityId}`,
     team: owner.team,
     ownerId: owner.id,
+    kind,
     position: add(owner.position, scale(direction, owner.stats.radius + radius + 2)),
     velocity: scale(direction, speed),
     radius,
@@ -228,6 +239,7 @@ function spawnTurretProjectile(world: BattleWorldState, owner: BallState, turret
     id: `projectile-${world.nextEntityId}`,
     team: turret.team,
     ownerId: owner.id,
+    kind: "turret",
     position: add(turret.position, scale(direction, turret.radius + mechanics.turretProjectileRadius + 2)),
     velocity: scale(direction, mechanics.turretProjectileSpeed),
     radius: mechanics.turretProjectileRadius,
@@ -251,6 +263,32 @@ function spawnTurretProjectile(world: BattleWorldState, owner: BallState, turret
     trigger: "turret_fire",
     position: { ...turret.position }
   });
+  return projectile;
+}
+
+function spawnBasketballProjectile(world: BattleWorldState, owner: BallState, direction: Vec2): ProjectileState {
+  const mechanics = owner.mechanics.special;
+  const radius = mechanics.basketballRadius;
+  const projectile: ProjectileState = {
+    id: `projectile-${world.nextEntityId}`,
+    team: owner.team,
+    ownerId: owner.id,
+    kind: "basketball",
+    position: add(owner.position, scale(direction, owner.stats.radius + radius + 2)),
+    velocity: scale(direction, mechanics.basketballSpeed),
+    radius,
+    damage: mechanics.basketballDamage,
+    lifetime: mechanics.basketballLifetime,
+    bouncesLeft: mechanics.basketballBounces,
+    piercesLeft: 0,
+    splitCount: 0,
+    childRadiusMultiplier: 1,
+    homingStrength: 0,
+    hitBallIds: [],
+    isChild: false
+  };
+  world.nextEntityId += 1;
+  world.projectiles.push(projectile);
   return projectile;
 }
 
@@ -284,8 +322,11 @@ function updateProjectiles(world: BattleWorldState, dt: number): void {
         continue;
       }
 
-      applyDamage(world, owner, target, projectile.damage, ["projectile"]);
-      applyOnHitStatuses(world, owner, target);
+      applyDamage(world, owner, target, projectile.damage, projectile.kind === "basketball" ? ["projectile", "special"] : ["projectile"]);
+      if (projectile.kind !== "basketball") {
+        applyOnHitStatuses(world, owner, target);
+      }
+      triggerProjectileHitEvent(world, projectile);
       projectile.hitBallIds.push(target.id);
       if (projectile.splitCount > 0 && !projectile.isChild) {
         spawnedProjectiles.push(...splitProjectile(world, owner, projectile));
@@ -304,6 +345,22 @@ function updateProjectiles(world: BattleWorldState, dt: number): void {
   }
 
   world.projectiles = activeProjectiles.concat(spawnedProjectiles);
+}
+
+function triggerProjectileHitEvent(world: BattleWorldState, projectile: ProjectileState): void {
+  if (projectile.kind !== "basketball") {
+    return;
+  }
+
+  world.events.push({
+    type: "trait_triggered",
+    tick: world.tick,
+    ballId: projectile.ownerId,
+    traitId: "special_bounce_basketball",
+    trigger: "basketball_hit",
+    position: { ...projectile.position },
+    value: projectile.damage
+  });
 }
 
 function steerProjectile(world: BattleWorldState, projectile: ProjectileState, dt: number): void {
@@ -356,8 +413,8 @@ function handleProjectileWallBounce(world: BattleWorldState, projectile: Project
     type: "trait_triggered",
     tick: world.tick,
     ballId: projectile.ownerId,
-    traitId: "ricochet_shot",
-    trigger: "projectile_bounce",
+    traitId: projectile.kind === "basketball" ? "special_bounce_basketball" : "ricochet_shot",
+    trigger: projectile.kind === "basketball" ? "basketball_bounce" : "projectile_bounce",
     position: { ...projectile.position },
     value: projectile.bouncesLeft
   });
@@ -487,9 +544,18 @@ function resolvePairCollision(world: BattleWorldState, a: BallState, b: BallStat
     position: midpoint(a.position, b.position)
   });
 
+  let attackA = { damage: 0, knockbackMultiplier: 1 };
+  let attackB = { damage: 0, knockbackMultiplier: 1 };
+  let defenseA = { damage: attackB.damage, selfKnockbackMultiplier: 1, attackerKnockbackMultiplier: 1 };
+  let defenseB = { damage: attackA.damage, selfKnockbackMultiplier: 1, attackerKnockbackMultiplier: 1 };
+
   if (canDamagePair(a, b)) {
-    const damageToB = applyDamage(world, a, b, getCollisionDamage(world, a), ["collision"]);
-    const damageToA = applyDamage(world, b, a, getCollisionDamage(world, b), ["collision"]);
+    attackA = getSpecialCollisionAttack(world, a, getCollisionDamage(world, a));
+    attackB = getSpecialCollisionAttack(world, b, getCollisionDamage(world, b));
+    defenseB = applyHajimiGuard(world, b, attackA.damage);
+    defenseA = applyHajimiGuard(world, a, attackB.damage);
+    const damageToB = applyDamage(world, a, b, defenseB.damage, ["collision"]);
+    const damageToA = applyDamage(world, b, a, defenseA.damage, ["collision"]);
     applyOnHitStatuses(world, a, b);
     applyOnHitStatuses(world, b, a);
     applyLifesteal(world, a, damageToB);
@@ -502,8 +568,10 @@ function resolvePairCollision(world: BattleWorldState, a: BallState, b: BallStat
     b.collisionTimers[a.id] = b.stats.collisionCooldown;
   }
 
-  a.velocity = scale(normal, -a.stats.knockback);
-  b.velocity = scale(normal, b.stats.knockback);
+  const knockbackToA = a.stats.knockback * attackB.knockbackMultiplier * defenseA.selfKnockbackMultiplier * defenseB.attackerKnockbackMultiplier;
+  const knockbackToB = b.stats.knockback * attackA.knockbackMultiplier * defenseB.selfKnockbackMultiplier * defenseA.attackerKnockbackMultiplier;
+  a.velocity = scale(normal, -knockbackToA);
+  b.velocity = scale(normal, knockbackToB);
 }
 
 function separateBalls(world: BattleWorldState, a: BallState, b: BallState, normal: Vec2, overlap: number): void {
@@ -542,6 +610,62 @@ function getCollisionDamage(world: BattleWorldState, source: BallState): number 
   });
   source.runtime.wallChargeStacks = 0;
   return baseDamage * (1 + wallChargeStacks * wallChargeDamagePercentPerStack);
+}
+
+function getSpecialCollisionAttack(
+  world: BattleWorldState,
+  source: BallState,
+  damage: number
+): { damage: number; knockbackMultiplier: number } {
+  const { elbowCooldown, elbowDamageMultiplier, elbowKnockbackMultiplier } = source.mechanics.special;
+  if (source.role !== "main" || damage <= 0 || elbowCooldown <= 0 || source.runtime.specialElbowWindowRemaining <= 0) {
+    return { damage, knockbackMultiplier: 1 };
+  }
+
+  source.runtime.specialElbowWindowRemaining = 0;
+  source.runtime.specialElbowCooldown = elbowCooldown;
+  world.events.push({
+    type: "trait_triggered",
+    tick: world.tick,
+    ballId: source.id,
+    traitId: "special_elbow_strike",
+    trigger: "elbow_hit",
+    position: { ...source.position },
+    value: elbowDamageMultiplier
+  });
+
+  return {
+    damage: damage * elbowDamageMultiplier,
+    knockbackMultiplier: elbowKnockbackMultiplier
+  };
+}
+
+function applyHajimiGuard(
+  world: BattleWorldState,
+  target: BallState,
+  incomingDamage: number
+): { damage: number; selfKnockbackMultiplier: number; attackerKnockbackMultiplier: number } {
+  const { hajimiCollisionReduction, hajimiSelfKnockbackMultiplier, hajimiAttackerKnockbackMultiplier } = target.mechanics.special;
+  if (target.role !== "main" || incomingDamage <= 0 || hajimiCollisionReduction <= 0 || target.runtime.specialHajimiGuardRemaining <= 0) {
+    return { damage: incomingDamage, selfKnockbackMultiplier: 1, attackerKnockbackMultiplier: 1 };
+  }
+
+  target.runtime.specialHajimiGuardRemaining = 0;
+  world.events.push({
+    type: "trait_triggered",
+    tick: world.tick,
+    ballId: target.id,
+    traitId: "special_hajimi_guard",
+    trigger: "hajimi_guard_consume",
+    position: { ...target.position },
+    value: incomingDamage * hajimiCollisionReduction
+  });
+
+  return {
+    damage: incomingDamage * (1 - hajimiCollisionReduction),
+    selfKnockbackMultiplier: hajimiSelfKnockbackMultiplier,
+    attackerKnockbackMultiplier: hajimiAttackerKnockbackMultiplier
+  };
 }
 
 function applyDamage(
@@ -737,6 +861,136 @@ function updateRules(world: BattleWorldState, dt: number): void {
 
     triggerLowHpRage(world, ball);
     updateTimeGrowth(world, ball, dt);
+  }
+}
+
+function updateSpecials(world: BattleWorldState, dt: number): void {
+  for (const ball of world.balls) {
+    if (!ball.alive || ball.role !== "main") {
+      continue;
+    }
+
+    updateSpecialElbow(world, ball, dt);
+    updateSpecialHajimiGuard(world, ball, dt);
+
+    if (ball.mechanics.special.basketballCooldown > 0) {
+      ball.runtime.specialBasketballCooldown = Math.max(0, ball.runtime.specialBasketballCooldown - dt);
+    }
+  }
+}
+
+function updateSpecialElbow(world: BattleWorldState, ball: BallState, dt: number): void {
+  const { elbowCooldown, elbowWindow, elbowDamageMultiplier } = ball.mechanics.special;
+  if (elbowCooldown <= 0 || elbowWindow <= 0 || elbowDamageMultiplier <= 1) {
+    return;
+  }
+
+  if (ball.runtime.specialElbowWindowRemaining > 0) {
+    const previousWindow = ball.runtime.specialElbowWindowRemaining;
+    ball.runtime.specialElbowWindowRemaining = Math.max(0, previousWindow - dt);
+    if (previousWindow > 0 && ball.runtime.specialElbowWindowRemaining <= 0) {
+      ball.runtime.specialElbowCooldown = elbowCooldown;
+      world.events.push({
+        type: "trait_triggered",
+        tick: world.tick,
+        ballId: ball.id,
+        traitId: "special_elbow_strike",
+        trigger: "elbow_expire",
+        position: { ...ball.position }
+      });
+    }
+    return;
+  }
+
+  const previousCooldown = ball.runtime.specialElbowCooldown;
+  ball.runtime.specialElbowCooldown = Math.max(0, previousCooldown - dt);
+  if (previousCooldown > 0 && ball.runtime.specialElbowCooldown <= 0) {
+    ball.runtime.specialElbowWindowRemaining = elbowWindow;
+    world.events.push({
+      type: "trait_triggered",
+      tick: world.tick,
+      ballId: ball.id,
+      traitId: "special_elbow_strike",
+      trigger: "elbow_ready",
+      position: { ...ball.position },
+      value: elbowWindow
+    });
+  }
+}
+
+function updateSpecialHajimiGuard(world: BattleWorldState, ball: BallState, dt: number): void {
+  const { hajimiCooldown, hajimiDuration, hajimiCollisionReduction } = ball.mechanics.special;
+  if (hajimiCooldown <= 0 || hajimiDuration <= 0 || hajimiCollisionReduction <= 0) {
+    return;
+  }
+
+  if (ball.runtime.specialHajimiCooldown > 0) {
+    ball.runtime.specialHajimiCooldown = Math.max(0, ball.runtime.specialHajimiCooldown - dt);
+  }
+
+  if (ball.runtime.specialHajimiGuardRemaining > 0) {
+    const previousGuard = ball.runtime.specialHajimiGuardRemaining;
+    ball.runtime.specialHajimiGuardRemaining = Math.max(0, previousGuard - dt);
+    if (previousGuard > 0 && ball.runtime.specialHajimiGuardRemaining <= 0) {
+      world.events.push({
+        type: "trait_triggered",
+        tick: world.tick,
+        ballId: ball.id,
+        traitId: "special_hajimi_guard",
+        trigger: "hajimi_guard_expire",
+        position: { ...ball.position }
+      });
+    }
+    return;
+  }
+
+  if (ball.runtime.specialHajimiCooldown <= 0) {
+    ball.runtime.specialHajimiGuardRemaining = hajimiDuration;
+    ball.runtime.specialHajimiCooldown = hajimiCooldown;
+    world.events.push({
+      type: "trait_triggered",
+      tick: world.tick,
+      ballId: ball.id,
+      traitId: "special_hajimi_guard",
+      trigger: "hajimi_guard_ready",
+      position: { ...ball.position },
+      value: hajimiDuration
+    });
+  }
+}
+
+function fireSpecialBasketballs(world: BattleWorldState): void {
+  for (const ball of world.balls) {
+    const mechanics = ball.mechanics.special;
+    if (
+      !ball.alive ||
+      ball.role !== "main" ||
+      mechanics.basketballCooldown <= 0 ||
+      mechanics.basketballDamage <= 0 ||
+      mechanics.basketballLimit <= 0 ||
+      ball.runtime.specialBasketballCooldown > 0 ||
+      countTeamBasketballs(world, ball.team) >= mechanics.basketballLimit
+    ) {
+      continue;
+    }
+
+    const target = findTarget(world, ball);
+    if (!target) {
+      continue;
+    }
+
+    const direction = normalize(sub(target.position, ball.position), normalize(ball.velocity, { x: ball.team === "blue" ? 1 : -1, y: 0 }));
+    spawnBasketballProjectile(world, ball, direction);
+    ball.runtime.specialBasketballCooldown = mechanics.basketballCooldown;
+    world.events.push({
+      type: "trait_triggered",
+      tick: world.tick,
+      ballId: ball.id,
+      traitId: "special_bounce_basketball",
+      trigger: "basketball_fire",
+      position: { ...ball.position },
+      value: countTeamBasketballs(world, ball.team)
+    });
   }
 }
 
@@ -1078,6 +1332,15 @@ function createChildMechanics(mechanics: BallMechanics, role: "clone" | "split")
       killGrowthMaxStacks: keepsScoringRules ? mechanics.rule.killGrowthMaxStacks : 0,
       timeGrowthMaxStacks: keepsScoringRules ? mechanics.rule.timeGrowthMaxStacks : 0,
       reviveHpRatio: 0
+    },
+    special: {
+      ...mechanics.special,
+      elbowCooldown: 0,
+      elbowWindow: 0,
+      basketballCooldown: 0,
+      basketballLimit: 0,
+      hajimiCooldown: 0,
+      hajimiDuration: 0
     }
   };
 }
@@ -1088,6 +1351,10 @@ function countOwnedBalls(world: BattleWorldState, owner: BallState, role: "clone
 
 function countOwnedTurrets(world: BattleWorldState, owner: BallState): number {
   return world.turrets.filter((turret) => turret.alive && turret.ownerId === owner.id).length;
+}
+
+function countTeamBasketballs(world: BattleWorldState, team: Team): number {
+  return world.projectiles.filter((projectile) => projectile.team === team && projectile.kind === "basketball").length;
 }
 
 function processDeaths(world: BattleWorldState): void {

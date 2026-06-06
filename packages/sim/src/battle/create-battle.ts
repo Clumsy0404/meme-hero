@@ -70,7 +70,7 @@ function createMainBall(
     hp: stats.maxHp,
     stats,
     mechanics,
-    runtime: createRuntimeState(),
+    runtime: createRuntimeState(mechanics),
     position,
     velocity,
     collisionTimers: {}

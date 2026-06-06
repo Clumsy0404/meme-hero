@@ -493,6 +493,109 @@ describe("sim bootstrap", () => {
     expect(splitEvent.value).toBe(2);
   });
 
+  it("readies and expires special elbow strike windows", () => {
+    const world = createBattle(
+      makeMatch(["special_elbow_strike", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 480, height: 240 }
+    );
+    placeSeparatedMainBalls(world, 100, 380, 120);
+
+    stepBattle(world, 5, 0);
+
+    const blue = world.balls[0]!;
+    expect(blue.runtime.specialElbowWindowRemaining).toBeCloseTo(2);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "elbow_ready")).toBe(true);
+
+    stepBattle(world, 2, 0);
+
+    expect(blue.runtime.specialElbowWindowRemaining).toBe(0);
+    expect(blue.runtime.specialElbowCooldown).toBeCloseTo(5);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "elbow_expire")).toBe(true);
+  });
+
+  it("amplifies collision damage with special elbow strike", () => {
+    const world = createBattle(
+      makeMatch(["special_elbow_strike", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 240, height: 180 }
+    );
+    const [blue, red] = placeOverlappingMainBalls(world);
+    blue.runtime.specialElbowCooldown = 0;
+    blue.runtime.specialElbowWindowRemaining = 2;
+    red.stats.collisionDamage = 0;
+    const hpBefore = red.hp;
+
+    stepBattle(world, 1 / 60, 0);
+
+    expect(hpBefore - red.hp).toBeCloseTo(12);
+    expect(blue.runtime.specialElbowWindowRemaining).toBe(0);
+    expect(blue.runtime.specialElbowCooldown).toBeCloseTo(5);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "elbow_hit")).toBe(true);
+  });
+
+  it("fires special basketball projectiles after their cooldown", () => {
+    const world = createBattle(
+      makeMatch(["special_bounce_basketball", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 720, height: 240 }
+    );
+    placeSeparatedMainBalls(world, 100, 620, 120);
+
+    for (let i = 0; i < 133; i += 1) {
+      stepBattle(world, 1 / 60, 0);
+    }
+
+    const basketball = world.projectiles.find((projectile) => projectile.kind === "basketball");
+    expect(basketball).toBeDefined();
+    expect(basketball?.damage).toBe(5);
+    expect(basketball?.bouncesLeft).toBe(3);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "basketball_fire")).toBe(true);
+  });
+
+  it("does not exceed the special basketball per-team limit", () => {
+    const world = createBattle(
+      makeMatch(["special_bounce_basketball", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 720, height: 240 }
+    );
+    placeSeparatedMainBalls(world, 100, 620, 120);
+    const blue = world.balls[0]!;
+    blue.runtime.specialBasketballCooldown = 0;
+
+    stepBattle(world, 1 / 60, 0);
+    const first = world.projectiles.find((projectile) => projectile.kind === "basketball");
+    if (!first) {
+      throw new Error("Expected first basketball");
+    }
+    world.projectiles.push({ ...first, id: "manual-basketball-1" }, { ...first, id: "manual-basketball-2" });
+    blue.runtime.specialBasketballCooldown = 0;
+
+    stepBattle(world, 1 / 60, 0);
+
+    expect(world.projectiles.filter((projectile) => projectile.team === "blue" && projectile.kind === "basketball")).toHaveLength(3);
+  });
+
+  it("emits special basketball wall bounce events", () => {
+    const world = createBattle(
+      makeMatch(["special_bounce_basketball", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 420, height: 240 }
+    );
+    placeSeparatedMainBalls(world, 100, 320, 120);
+    const blue = world.balls[0]!;
+    blue.runtime.specialBasketballCooldown = 0;
+
+    stepBattle(world, 1 / 60, 0);
+    const basketball = world.projectiles.find((projectile) => projectile.kind === "basketball");
+    if (!basketball) {
+      throw new Error("Expected a basketball before bounce");
+    }
+    basketball.position = { x: world.arena.width - basketball.radius - 1, y: 24 };
+    basketball.velocity = { x: 100, y: 0 };
+
+    stepBattle(world, 1 / 60, 0);
+
+    expect(basketball.velocity.x).toBeLessThan(0);
+    expect(basketball.bouncesLeft).toBe(2);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "basketball_bounce")).toBe(true);
+  });
+
   it("spawns clone balls without exceeding the configured clone limit", () => {
     const world = createBattle(
       makeMatch(["clone_spawn", "hp_boost", "hp_boost"], hpStackTraits),
@@ -699,6 +802,59 @@ describe("sim bootstrap", () => {
     expect(red.runtime.shield).toBeCloseTo(6);
     expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "shield_refresh")).toBe(true);
     expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "shield_absorb")).toBe(true);
+  });
+
+  it("readies and expires special hajimi guard", () => {
+    const world = createBattle(
+      makeMatch(["special_hajimi_guard", "hp_boost", "hp_boost"], hpStackTraits),
+      { id: "test", width: 480, height: 240 }
+    );
+    placeSeparatedMainBalls(world, 100, 380, 120);
+
+    stepBattle(world, 15, 0);
+
+    const blue = world.balls[0]!;
+    expect(blue.runtime.specialHajimiGuardRemaining).toBeCloseTo(3.5);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "hajimi_guard_ready")).toBe(true);
+
+    stepBattle(world, 3.5, 0);
+
+    expect(blue.runtime.specialHajimiGuardRemaining).toBe(0);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "hajimi_guard_expire")).toBe(true);
+  });
+
+  it("reduces the next collision damage with special hajimi guard", () => {
+    const world = createBattle(
+      makeMatch(hpStackTraits, ["special_hajimi_guard", "hp_boost", "hp_boost"]),
+      { id: "test", width: 240, height: 180 }
+    );
+    const [blue, red] = placeOverlappingMainBalls(world);
+    red.runtime.specialHajimiGuardRemaining = 3.5;
+    red.stats.collisionDamage = 0;
+    const hpBefore = red.hp;
+
+    stepBattle(world, 1 / 60, 0);
+
+    expect(hpBefore - red.hp).toBeCloseTo(8 * 0.4);
+    expect(red.runtime.specialHajimiGuardRemaining).toBe(0);
+    expect(Math.hypot(blue.velocity.x, blue.velocity.y)).toBeCloseTo(blue.stats.knockback * 1.35);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "hajimi_guard_consume")).toBe(true);
+  });
+
+  it("does not reduce projectile damage with special hajimi guard", () => {
+    const world = createBattle(
+      makeMatch(["ranged_core", "hp_boost", "hp_boost"], ["special_hajimi_guard", "hp_boost", "hp_boost"]),
+      { id: "test", width: 360, height: 240 }
+    );
+    const [, red] = placeSeparatedMainBalls(world, 100, 225, 120);
+    red.runtime.specialHajimiGuardRemaining = 3.5;
+    const hpBefore = red.hp;
+
+    stepBattle(world, 1 / 60, 0);
+
+    expect(hpBefore - red.hp).toBeCloseTo(2.6);
+    expect(red.runtime.specialHajimiGuardRemaining).toBeGreaterThan(0);
+    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "hajimi_guard_consume")).toBe(false);
   });
 
   it("triggers low hp rage and temporarily increases movement speed", () => {

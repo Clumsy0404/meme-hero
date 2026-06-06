@@ -24,11 +24,14 @@ export function getSnapshot(world: BattleWorldState): WorldSnapshot {
       killGrowthStacks: ball.runtime.killGrowthStacks,
       timeGrowthStacks: ball.runtime.timeGrowthStacks,
       reviveTriggered: ball.runtime.reviveTriggered,
+      specialElbowReady: ball.runtime.specialElbowWindowRemaining > 0,
+      specialHajimiGuardRemaining: ball.runtime.specialHajimiGuardRemaining,
       position: { ...ball.position }
     })),
     projectiles: world.projectiles.map((projectile) => ({
       id: projectile.id,
       team: projectile.team,
+      kind: projectile.kind,
       radius: projectile.radius,
       position: { ...projectile.position }
     })),

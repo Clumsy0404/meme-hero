@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { createBuildConfig, createMatchConfig } from "../app/match";
 import { playMobileSfx } from "./mobile-audio";
-import { statusColors, statusLabels } from "./mobile-assets";
+import { specialEffectColors, statusColors, statusLabels } from "./mobile-assets";
 import {
   getMobileCategory,
   getMobileTrait,
@@ -681,6 +681,21 @@ function MobileBattleFlow({ blueBuild, opponent, redBuild, onBack }: MobileBattl
   const [restartToken, setRestartToken] = useState(0);
   const battleMode: MobileBattleSnapshot["mode"] = isPlayerBuildRecord(opponent) ? "pvp" : "pve";
   const snapshot = useMobileBattleSnapshot(blueBuild, redBuild, opponent, battleMode, paused, speed, restartToken);
+  const lastSfxTickRef = useRef(-1);
+
+  useEffect(() => {
+    lastSfxTickRef.current = -1;
+  }, [restartToken]);
+
+  useEffect(() => {
+    if (!snapshot || snapshot.sfx.length === 0 || snapshot.tick === lastSfxTickRef.current) {
+      return;
+    }
+    for (const key of snapshot.sfx) {
+      playMobileSfx(key);
+    }
+    lastSfxTickRef.current = snapshot.tick;
+  }, [snapshot]);
 
   const handleSpeedChange = useCallback((nextSpeed: number) => {
     playMobileSfx("ui.click");
@@ -838,18 +853,36 @@ function BattleScreen({ snapshot, paused, speed, onBack, onRestart, onSpeedChang
           <div className="vbt-ent" key={combatant.id} style={arenaStyle(snapshot, combatant.x, combatant.y)}>
             <div className="vbt-entbox" style={{ "--ec": combatant.color } as React.CSSProperties}>
               <span className="vbt-nameTag">{combatant.name}</span>
-              <BallSprite color={combatant.color} px={Math.max(4, combatant.r / 8)} />
+              <CombatantBall combatant={combatant} />
               {combatant.statuses.map((status) => (
                 <i className="vbt-ball-ring" key={status.type} style={{ "--status": statusColors[status.type] } as React.CSSProperties} />
+              ))}
+              {combatant.specialEffects.map((effect) => (
+                <i
+                  className={`vbt-ball-ring special ${effect}`}
+                  key={effect}
+                  style={
+                    {
+                      "--status": effect === "hajimiGuard" ? specialEffectColors.hajimiGuard : specialEffectColors.elbowReady
+                    } as React.CSSProperties
+                  }
+                />
               ))}
             </div>
           </div>
         ))}
         {snapshot.projectiles.map((projectile) => (
           <div
-            className="vbt-proj"
+            className={`vbt-proj ${projectile.kind}`}
             key={projectile.id}
-            style={{ ...arenaStyle(snapshot, projectile.x, projectile.y), background: projectile.color, color: projectile.color } as React.CSSProperties}
+            style={
+              {
+                ...arenaStyle(snapshot, projectile.x, projectile.y),
+                "--pr": `${Math.max(6, projectile.r * 0.72)}px`,
+                background: projectile.color,
+                color: projectile.color
+              } as React.CSSProperties
+            }
           />
         ))}
         {snapshot.floaters.map((floater) => (
@@ -882,6 +915,14 @@ function BattleScreen({ snapshot, paused, speed, onBack, onRestart, onSpeedChang
       </div>
     </section>
   );
+}
+
+function CombatantBall({ combatant }: { combatant: MobileBattleSnapshot["combatants"][number] }) {
+  if (combatant.iconSrc) {
+    const size = getSpecialBallRenderSize(combatant.r);
+    return <img alt="" className="vbt-ball-img" draggable={false} src={combatant.iconSrc} style={{ "--bs": `${size}px` } as React.CSSProperties} />;
+  }
+  return <BallSprite color={combatant.color} px={Math.max(4, combatant.r / 8)} />;
 }
 
 function FighterHud({ combatant, side }: { combatant: MobileBattleSnapshot["combatants"][number]; side: "me" | "foe" }) {
@@ -919,6 +960,10 @@ function FighterHud({ combatant, side }: { combatant: MobileBattleSnapshot["comb
       ) : null}
     </div>
   );
+}
+
+function getSpecialBallRenderSize(radius: number): number {
+  return Math.max(34, Math.min(92, radius * 1.28));
 }
 
 function ResultOverlay({ status }: { status: Exclude<MobileBattleStatus, "fighting"> }) {

@@ -1,7 +1,8 @@
-import type { BattleEvent, StatusEffectId, WorldSnapshot } from "@ball-brawl/sim";
+import type { BattleEvent, ProjectileKind, StatusEffectId, WorldSnapshot } from "@ball-brawl/sim";
 import type { BuildConfig, Team, TraitId } from "@ball-brawl/shared";
 
-import { statusColors, statusLabels, teamColors } from "./mobile-assets";
+import type { MobileSfxKey } from "./mobile-audio";
+import { getSpecialTraitAsset, statusColors, statusLabels, teamColors } from "./mobile-assets";
 import { getMobileTrait, type MobileOpponent } from "./mobile-data";
 
 export type MobileBattleStatus = "fighting" | "win" | "lose" | "draw";
@@ -19,7 +20,10 @@ export type MobileBattleSnapshot = {
   summons: MobileSummon[];
   floaters: MobileFloater[];
   log: MobileLogLine[];
+  sfx: MobileSfxKey[];
 };
+
+export type MobileSpecialEffect = "elbowReady" | "hajimiGuard";
 
 export type MobileCombatant = {
   side: "me" | "foe";
@@ -34,10 +38,13 @@ export type MobileCombatant = {
   r: number;
   build: TraitId[];
   statuses: Array<{ type: StatusEffectId; stacks: number }>;
+  specialEffects: MobileSpecialEffect[];
+  iconSrc: string | undefined;
 };
 
 export type MobileProjectile = {
   id: string;
+  kind: ProjectileKind;
   x: number;
   y: number;
   r: number;
@@ -103,7 +110,9 @@ export function toMobileBattleSnapshot(
             y: blueMain.position.y,
             r: blueMain.radius,
             build: blueBuild.traits,
-            statuses: blueMain.statuses.map((statusEffect) => ({ type: statusEffect.id, stacks: 1 }))
+            statuses: blueMain.statuses.map((statusEffect) => ({ type: statusEffect.id, stacks: 1 })),
+            specialEffects: getSpecialEffects(blueMain),
+            iconSrc: getSpecialTraitAsset(blueBuild.traits)?.ballSrc
           }
         : fallbackCombatant("me", blueBuild.name, teamColors.blue, blueBuild.traits),
       redMain
@@ -119,12 +128,15 @@ export function toMobileBattleSnapshot(
             y: redMain.position.y,
             r: redMain.radius,
             build: redBuild.traits,
-            statuses: redMain.statuses.map((statusEffect) => ({ type: statusEffect.id, stacks: 1 }))
+            statuses: redMain.statuses.map((statusEffect) => ({ type: statusEffect.id, stacks: 1 })),
+            specialEffects: getSpecialEffects(redMain),
+            iconSrc: getSpecialTraitAsset(redBuild.traits)?.ballSrc
           }
         : fallbackCombatant("foe", opponent.name, opponent.color, redBuild.traits)
     ],
     projectiles: snapshot.projectiles.map((projectile) => ({
       id: projectile.id,
+      kind: projectile.kind,
       x: projectile.position.x,
       y: projectile.position.y,
       r: projectile.radius,
@@ -154,7 +166,8 @@ export function toMobileBattleSnapshot(
       }))
     ],
     floaters: snapshot.events.map(eventToFloater).filter((floater): floater is MobileFloater => Boolean(floater)).slice(-8),
-    log: snapshot.events.map(eventToLogLine).filter((line): line is MobileLogLine => Boolean(line)).slice(-5).reverse()
+    log: snapshot.events.map(eventToLogLine).filter((line): line is MobileLogLine => Boolean(line)).slice(-5).reverse(),
+    sfx: snapshot.events.map(eventToSfx).filter((key): key is MobileSfxKey => Boolean(key))
   };
 }
 
@@ -181,8 +194,21 @@ function fallbackCombatant(side: "me" | "foe", name: string, color: string, buil
     y: 300,
     r: 48,
     build,
-    statuses: []
+    statuses: [],
+    specialEffects: [],
+    iconSrc: getSpecialTraitAsset(build)?.ballSrc
   };
+}
+
+function getSpecialEffects(ball: WorldSnapshot["balls"][number]): MobileSpecialEffect[] {
+  const effects: MobileSpecialEffect[] = [];
+  if (ball.specialElbowReady) {
+    effects.push("elbowReady");
+  }
+  if (ball.specialHajimiGuardRemaining > 0) {
+    effects.push("hajimiGuard");
+  }
+  return effects;
 }
 
 function toOwner(team: Team): "me" | "foe" {
@@ -237,6 +263,22 @@ function eventToLogLine(event: BattleEvent): MobileLogLine | undefined {
   if (event.type === "match_end") {
     const result = event.result.winner === "draw" ? "平局" : event.result.winner === "blue" ? "我方获胜" : "挑战失败";
     return { t, text: result, kind: event.result.winner === "blue" ? "kill" : "sys" };
+  }
+  return undefined;
+}
+
+function eventToSfx(event: BattleEvent): MobileSfxKey | undefined {
+  if (event.type !== "trait_triggered") {
+    return undefined;
+  }
+  if (event.trigger === "elbow_hit") {
+    return "special.elbow_strike";
+  }
+  if (event.trigger === "basketball_hit" || event.trigger === "basketball_bounce") {
+    return "special.bounce_basketball";
+  }
+  if (event.trigger === "hajimi_guard_consume") {
+    return "special.hajimi_guard";
   }
   return undefined;
 }

@@ -1,4 +1,4 @@
-import type { StatusEffectId } from "@ball-brawl/sim";
+import type { ProjectileKind, StatusEffectId } from "@ball-brawl/sim";
 import type { Team, TraitId } from "@ball-brawl/shared";
 
 export type MobileAssetKey =
@@ -17,10 +17,17 @@ export type MobileAssetRef = {
 
 export type MobileAssetManifest = {
   balls: Record<Team | "meme_placeholder", MobileAssetRef>;
-  projectiles: Record<"basic" | "child", MobileAssetRef>;
+  projectiles: Record<ProjectileKind, MobileAssetRef>;
   summons: Record<"clone" | "split" | "turret", MobileAssetRef>;
   statuses: Record<StatusEffectId | "shield", MobileAssetRef>;
   traits: Partial<Record<TraitId, MobileAssetRef>>;
+};
+
+export type SpecialTraitAsset = {
+  traitId: TraitId;
+  ballSrc: string;
+  sfxSrc: string;
+  priority: number;
 };
 
 export const mobileAssetManifest: MobileAssetManifest = {
@@ -31,7 +38,9 @@ export const mobileAssetManifest: MobileAssetManifest = {
   },
   projectiles: {
     basic: { key: "projectile.basic", kind: "placeholder" },
-    child: { key: "projectile.child", kind: "placeholder" }
+    child: { key: "projectile.child", kind: "placeholder" },
+    turret: { key: "projectile.turret", kind: "placeholder" },
+    basketball: { key: "projectile.basketball", kind: "placeholder" }
   },
   summons: {
     clone: { key: "summon.clone", kind: "placeholder" },
@@ -47,6 +56,34 @@ export const mobileAssetManifest: MobileAssetManifest = {
   },
   traits: {}
 };
+
+export const specialTraitAssets: Partial<Record<TraitId, SpecialTraitAsset>> = {
+  special_elbow_strike: {
+    traitId: "special_elbow_strike",
+    ballSrc: "/assets/special/special_elbow_strike.png",
+    sfxSrc: "/assets/special/special_elbow_strike.mp3",
+    priority: 1
+  },
+  special_bounce_basketball: {
+    traitId: "special_bounce_basketball",
+    ballSrc: "/assets/special/special_bounce_basketball.png",
+    sfxSrc: "/assets/special/special_bounce_basketball.mp3",
+    priority: 2
+  },
+  special_hajimi_guard: {
+    traitId: "special_hajimi_guard",
+    ballSrc: "/assets/special/special_hajimi_guard.png",
+    sfxSrc: "/assets/special/special_hajimi_guard.mp3",
+    priority: 3
+  }
+};
+
+export function getSpecialTraitAsset(traits: TraitId[]): SpecialTraitAsset | undefined {
+  return traits
+    .map((traitId) => specialTraitAssets[traitId])
+    .filter((asset): asset is SpecialTraitAsset => Boolean(asset))
+    .sort((a, b) => a.priority - b.priority)[0];
+}
 
 export const teamColors: Record<Team, string> = {
   blue: "#22d3ff",
@@ -68,3 +105,8 @@ export const statusLabels: Record<StatusEffectId | "shield", string> = {
   vulnerable: "脆弱",
   shield: "护盾"
 };
+
+export const specialEffectColors = {
+  elbowReady: "#ffd23f",
+  hajimiGuard: "#ff8bd1"
+} as const;

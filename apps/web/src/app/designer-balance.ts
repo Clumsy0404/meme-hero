@@ -7,6 +7,7 @@ import type {
   ProjectileBalanceOverrides,
   ProjectileTraitConfig,
   RuleTraitConfig,
+  SpecialTraitConfig,
   StatKey,
   StatModifier,
   StatModifierOperation,
@@ -131,6 +132,25 @@ const statusNumberKeys = [
 const ruleNumberKeys = ["duration", "maxStacks", "reviveHpRatio", "hpCostPercent"] satisfies ReadonlyArray<
   Exclude<keyof RuleTraitConfig, "trigger">
 >;
+
+const specialTraitKeys = [
+  "elbowCooldown",
+  "elbowWindow",
+  "elbowDamageMultiplier",
+  "elbowKnockbackMultiplier",
+  "basketballCooldown",
+  "basketballDamage",
+  "basketballSpeed",
+  "basketballRadius",
+  "basketballLifetime",
+  "basketballBounces",
+  "basketballLimit",
+  "hajimiCooldown",
+  "hajimiDuration",
+  "hajimiCollisionReduction",
+  "hajimiSelfKnockbackMultiplier",
+  "hajimiAttackerKnockbackMultiplier"
+] satisfies ReadonlyArray<keyof SpecialTraitConfig>;
 
 export function createDefaultDesignerBalanceConfig(): DesignerBalanceConfig {
   return {
@@ -290,6 +310,7 @@ function normalizeTraitNumericBalanceOverride(value: Record<string, unknown>): T
   assignTraitOverrideField(normalized, "summon", normalizeNumberConfig<SummonTraitConfig>(value.summon, summonTraitKeys));
   assignTraitOverrideField(normalized, "status", normalizeStatusConfig(value.status));
   assignTraitOverrideField(normalized, "rule", normalizeRuleConfig(value.rule));
+  assignTraitOverrideField(normalized, "special", normalizeNumberConfig<SpecialTraitConfig>(value.special, specialTraitKeys));
 
   return normalized;
 }

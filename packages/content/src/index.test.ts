@@ -18,7 +18,7 @@ describe("content bootstrap", () => {
   });
 
   it("ships the MVP trait library", () => {
-    expect(traitDefinitions).toHaveLength(30);
+    expect(traitDefinitions).toHaveLength(33);
     expect(traitDefinitions.filter((trait) => trait.mainType === "attribute")).toHaveLength(6);
     expect(traitDefinitions.every((trait) => trait.name.length > 0 && trait.description.length > 0)).toBe(true);
   });

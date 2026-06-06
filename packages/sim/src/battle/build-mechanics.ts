@@ -7,6 +7,7 @@ import type {
   CollisionMechanics,
   ProjectileMechanics,
   RuleMechanics,
+  SpecialMechanics,
   StatusEffectId,
   StatusMechanics,
   SummonMechanics
@@ -101,12 +102,32 @@ const emptyRuleMechanics: RuleMechanics = {
   reviveHpRatio: 0
 };
 
+export const emptySpecialMechanics: SpecialMechanics = {
+  elbowCooldown: 0,
+  elbowWindow: 0,
+  elbowDamageMultiplier: 1,
+  elbowKnockbackMultiplier: 1,
+  basketballCooldown: 0,
+  basketballDamage: 0,
+  basketballSpeed: 0,
+  basketballRadius: 0,
+  basketballLifetime: 0,
+  basketballBounces: 0,
+  basketballLimit: 0,
+  hajimiCooldown: 0,
+  hajimiDuration: 0,
+  hajimiCollisionReduction: 0,
+  hajimiSelfKnockbackMultiplier: 1,
+  hajimiAttackerKnockbackMultiplier: 1
+};
+
 export function createMechanicsForBuild(build: BuildConfig, overrides?: BattleBalanceOverrides): BallMechanics {
   const collision = { ...emptyCollisionMechanics };
   const projectile = applyProjectileOverrides({ ...baseProjectileMechanics }, overrides?.projectile);
   const summon = applyTurretOverrides({ ...emptySummonMechanics }, overrides?.turret);
   const status: StatusMechanics = { ...emptyStatusMechanics, onHit: [] };
   const rule = { ...emptyRuleMechanics };
+  const special = { ...emptySpecialMechanics };
   let fireRateMultiplier = 1;
 
   for (const traitId of build.traits) {
@@ -196,11 +217,40 @@ export function createMechanicsForBuild(build: BuildConfig, overrides?: BattleBa
         rule.reviveHpRatio = Math.max(rule.reviveHpRatio, ruleConfig.reviveHpRatio ?? 0);
       }
     }
+
+    const specialConfig = numeric.special;
+    if (specialConfig) {
+      special.elbowCooldown = Math.max(special.elbowCooldown, specialConfig.elbowCooldown ?? 0);
+      special.elbowWindow = Math.max(special.elbowWindow, specialConfig.elbowWindow ?? 0);
+      special.elbowDamageMultiplier = Math.max(special.elbowDamageMultiplier, specialConfig.elbowDamageMultiplier ?? special.elbowDamageMultiplier);
+      special.elbowKnockbackMultiplier = Math.max(
+        special.elbowKnockbackMultiplier,
+        specialConfig.elbowKnockbackMultiplier ?? special.elbowKnockbackMultiplier
+      );
+      special.basketballCooldown = Math.max(special.basketballCooldown, specialConfig.basketballCooldown ?? 0);
+      special.basketballDamage = Math.max(special.basketballDamage, specialConfig.basketballDamage ?? 0);
+      special.basketballSpeed = Math.max(special.basketballSpeed, specialConfig.basketballSpeed ?? 0);
+      special.basketballRadius = Math.max(special.basketballRadius, specialConfig.basketballRadius ?? 0);
+      special.basketballLifetime = Math.max(special.basketballLifetime, specialConfig.basketballLifetime ?? 0);
+      special.basketballBounces = Math.max(special.basketballBounces, specialConfig.basketballBounces ?? 0);
+      special.basketballLimit = Math.max(special.basketballLimit, specialConfig.basketballLimit ?? 0);
+      special.hajimiCooldown = Math.max(special.hajimiCooldown, specialConfig.hajimiCooldown ?? 0);
+      special.hajimiDuration = Math.max(special.hajimiDuration, specialConfig.hajimiDuration ?? 0);
+      special.hajimiCollisionReduction = Math.max(special.hajimiCollisionReduction, specialConfig.hajimiCollisionReduction ?? 0);
+      special.hajimiSelfKnockbackMultiplier = Math.min(
+        special.hajimiSelfKnockbackMultiplier,
+        specialConfig.hajimiSelfKnockbackMultiplier ?? special.hajimiSelfKnockbackMultiplier
+      );
+      special.hajimiAttackerKnockbackMultiplier = Math.max(
+        special.hajimiAttackerKnockbackMultiplier,
+        specialConfig.hajimiAttackerKnockbackMultiplier ?? special.hajimiAttackerKnockbackMultiplier
+      );
+    }
   }
 
   projectile.cooldown = projectile.enabled ? projectile.cooldown / Math.max(0.25, fireRateMultiplier) : projectile.cooldown;
 
-  return { collision, projectile, summon, status, rule };
+  return { collision, projectile, summon, status, rule, special };
 }
 
 function applyProjectileOverrides(
@@ -237,7 +287,8 @@ function applyTurretOverrides(
   return mechanics;
 }
 
-export function createRuntimeState(): BallRuntimeState {
+export function createRuntimeState(mechanics?: BallMechanics): BallRuntimeState {
+  const special = mechanics?.special;
   return {
     lifestealWindowStart: 0,
     lifestealHealedInWindow: 0,
@@ -258,7 +309,12 @@ export function createRuntimeState(): BallRuntimeState {
     timeGrowthStacks: 0,
     timeGrowthTimer: 0,
     reviveTriggered: false,
-    lastDamageSourceId: null
+    lastDamageSourceId: null,
+    specialElbowCooldown: special?.elbowCooldown ?? 0,
+    specialElbowWindowRemaining: 0,
+    specialBasketballCooldown: special?.basketballCooldown ?? 0,
+    specialHajimiCooldown: special?.hajimiCooldown ?? 0,
+    specialHajimiGuardRemaining: 0
   };
 }
 

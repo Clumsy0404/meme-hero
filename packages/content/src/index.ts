@@ -402,6 +402,64 @@ export const traitDefinitions: TraitDefinition[] = [
     behaviorKeys: ["status_shield_cycle"]
   },
   {
+    id: "special_elbow_strike",
+    name: "黑曼巴肘击",
+    subtitle: "近身爆发碰撞",
+    mainType: "collision",
+    tags: ["special", "collision", "damage", "knockback"],
+    repeatRule: { kind: "unique" },
+    description: "每 5 秒强化下一次碰撞，强化窗口持续 2 秒，命中时造成 1.5 倍碰撞伤害并提高击退。",
+    numeric: {
+      special: {
+        elbowCooldown: 5,
+        elbowWindow: 2,
+        elbowDamageMultiplier: 1.5,
+        elbowKnockbackMultiplier: 1.35
+      }
+    },
+    behaviorKeys: ["special_elbow_strike"]
+  },
+  {
+    id: "special_bounce_basketball",
+    name: "唱跳篮球",
+    subtitle: "可反弹弹道",
+    mainType: "projectile",
+    tags: ["special", "projectile", "bounce"],
+    repeatRule: { kind: "unique" },
+    description: "每 2.2 秒发射 1 个篮球弹道，命中造成 5 点伤害，撞墙可反弹 3 次。",
+    numeric: {
+      special: {
+        basketballCooldown: 2.2,
+        basketballDamage: 5,
+        basketballSpeed: 300,
+        basketballRadius: 16,
+        basketballLifetime: 6,
+        basketballBounces: 3,
+        basketballLimit: 3
+      }
+    },
+    behaviorKeys: ["special_bounce_basketball"]
+  },
+  {
+    id: "special_hajimi_guard",
+    name: "哈基米护体",
+    subtitle: "软弹护盾",
+    mainType: "status",
+    tags: ["special", "guard", "collision", "survival"],
+    repeatRule: { kind: "unique" },
+    description: "每 15 秒获得 1 次护体状态，持续 3.5 秒；下一次受到碰撞伤害降低 60% 并软弹反弹。",
+    numeric: {
+      special: {
+        hajimiCooldown: 15,
+        hajimiDuration: 3.5,
+        hajimiCollisionReduction: 0.6,
+        hajimiSelfKnockbackMultiplier: 0.65,
+        hajimiAttackerKnockbackMultiplier: 1.35
+      }
+    },
+    behaviorKeys: ["special_hajimi_guard"]
+  },
+  {
     id: "low_hp_rage",
     name: "低血狂暴",
     subtitle: "濒危时爆发",

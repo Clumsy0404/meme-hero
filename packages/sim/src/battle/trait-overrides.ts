@@ -17,6 +17,7 @@ export function mergeTraitNumericConfig(
   assignIfDefined(merged, "summon", mergeConfig(numeric.summon, override.summon));
   assignIfDefined(merged, "status", mergeStatusConfig(numeric.status, override.status));
   assignIfDefined(merged, "rule", mergeConfig(numeric.rule, override.rule));
+  assignIfDefined(merged, "special", mergeConfig(numeric.special, override.special));
   return merged;
 }
 

@@ -31,6 +31,7 @@ export type BallMechanics = {
   summon: SummonMechanics;
   status: StatusMechanics;
   rule: RuleMechanics;
+  special: SpecialMechanics;
 };
 
 export type CollisionMechanics = {
@@ -123,6 +124,25 @@ export type RuleMechanics = {
   reviveHpRatio: number;
 };
 
+export type SpecialMechanics = {
+  elbowCooldown: number;
+  elbowWindow: number;
+  elbowDamageMultiplier: number;
+  elbowKnockbackMultiplier: number;
+  basketballCooldown: number;
+  basketballDamage: number;
+  basketballSpeed: number;
+  basketballRadius: number;
+  basketballLifetime: number;
+  basketballBounces: number;
+  basketballLimit: number;
+  hajimiCooldown: number;
+  hajimiDuration: number;
+  hajimiCollisionReduction: number;
+  hajimiSelfKnockbackMultiplier: number;
+  hajimiAttackerKnockbackMultiplier: number;
+};
+
 export type BallRuntimeState = {
   lifestealWindowStart: number;
   lifestealHealedInWindow: number;
@@ -144,14 +164,22 @@ export type BallRuntimeState = {
   timeGrowthTimer: number;
   reviveTriggered: boolean;
   lastDamageSourceId: string | null;
+  specialElbowCooldown: number;
+  specialElbowWindowRemaining: number;
+  specialBasketballCooldown: number;
+  specialHajimiCooldown: number;
+  specialHajimiGuardRemaining: number;
 };
 
-export type DamageTag = "collision" | "projectile" | "dot" | "explosion" | "reflect";
+export type DamageTag = "collision" | "projectile" | "dot" | "explosion" | "reflect" | "special";
+
+export type ProjectileKind = "basic" | "child" | "turret" | "basketball";
 
 export type ProjectileState = {
   id: string;
   team: Team;
   ownerId: string;
+  kind: ProjectileKind;
   position: Vec2;
   velocity: Vec2;
   radius: number;
@@ -271,6 +299,8 @@ export type RenderBall = {
   killGrowthStacks: number;
   timeGrowthStacks: number;
   reviveTriggered: boolean;
+  specialElbowReady: boolean;
+  specialHajimiGuardRemaining: number;
   position: Vec2;
 };
 
@@ -282,6 +312,7 @@ export type RenderStatusEffect = {
 export type RenderProjectile = {
   id: string;
   team: Team;
+  kind: ProjectileKind;
   radius: number;
   position: Vec2;
 };

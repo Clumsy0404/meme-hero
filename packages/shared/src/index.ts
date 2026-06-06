@@ -85,6 +85,25 @@ export type RuleTraitConfig = {
   hpCostPercent?: number;
 };
 
+export type SpecialTraitConfig = {
+  elbowCooldown?: number;
+  elbowWindow?: number;
+  elbowDamageMultiplier?: number;
+  elbowKnockbackMultiplier?: number;
+  basketballCooldown?: number;
+  basketballDamage?: number;
+  basketballSpeed?: number;
+  basketballRadius?: number;
+  basketballLifetime?: number;
+  basketballBounces?: number;
+  basketballLimit?: number;
+  hajimiCooldown?: number;
+  hajimiDuration?: number;
+  hajimiCollisionReduction?: number;
+  hajimiSelfKnockbackMultiplier?: number;
+  hajimiAttackerKnockbackMultiplier?: number;
+};
+
 export type TraitNumericConfig = {
   statModifiers?: StatModifier[];
   collision?: CollisionTraitConfig;
@@ -92,6 +111,7 @@ export type TraitNumericConfig = {
   summon?: SummonTraitConfig;
   status?: StatusTraitConfig;
   rule?: RuleTraitConfig;
+  special?: SpecialTraitConfig;
 };
 
 export type TraitDefinition = {
@@ -158,6 +178,7 @@ export type TraitNumericBalanceOverrides = {
   summon?: SummonTraitConfig;
   status?: Partial<StatusTraitConfig>;
   rule?: RuleTraitConfig;
+  special?: SpecialTraitConfig;
 };
 
 export type TraitBalanceOverrides = Partial<Record<TraitId, TraitNumericBalanceOverrides>>;
