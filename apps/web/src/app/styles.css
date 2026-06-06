@@ -349,6 +349,10 @@ h1 {
   border-color: #7dd3fc;
 }
 
+.trait-json-area {
+  min-height: 156px;
+}
+
 .field-label {
   color: #9aa7b3;
   font-size: 12px;

@@ -4,8 +4,11 @@ import {
   DESIGNER_BALANCE_STORAGE_KEY,
   createDefaultDesignerBalanceConfig,
   decodeDesignerBalanceConfig,
+  decodeTraitBalanceOverrides,
   encodeDesignerBalanceConfig,
+  encodeTraitBalanceOverrides,
   normalizeDesignerBalanceConfig,
+  normalizeTraitBalanceOverrides,
   readDesignerBalanceConfig,
   toBattleBalanceOverrides,
   type DesignerBalanceConfig,
@@ -39,7 +42,8 @@ const fallback: DesignerBalanceConfig = {
     turretProjectileSpeed: 280,
     turretProjectileRadius: 10,
     turretProjectileLifetime: 3
-  }
+  },
+  traits: {}
 };
 
 describe("designer balance config", () => {
@@ -50,6 +54,7 @@ describe("designer balance config", () => {
     expect(config.projectile.damage).toBe(2);
     expect(config.projectile.speed).toBe(280);
     expect(config.turret.turretProjectileDamage).toBe(1);
+    expect(config.traits).toEqual({});
   });
 
   it("normalizes valid partial saved values and keeps missing fields from fallback", () => {
@@ -67,6 +72,19 @@ describe("designer balance config", () => {
         },
         turret: {
           turretProjectileDamage: 2
+        },
+        traits: {
+          pellet_barrage: {
+            projectile: {
+              damageMultiplier: 0.5,
+              extraProjectiles: 1
+            }
+          },
+          burn_payload: {
+            status: {
+              chance: 1
+            }
+          }
         }
       },
       fallback
@@ -81,6 +99,9 @@ describe("designer balance config", () => {
     expect(config.projectile.cooldown).toBe(fallback.projectile.cooldown);
     expect(config.turret.turretProjectileDamage).toBe(2);
     expect(config.turret.turretHp).toBe(fallback.turret.turretHp);
+    expect(config.traits.pellet_barrage?.projectile?.damageMultiplier).toBe(0.5);
+    expect(config.traits.pellet_barrage?.projectile?.extraProjectiles).toBe(1);
+    expect(config.traits.burn_payload?.status?.chance).toBe(1);
   });
 
   it("clamps invalid numeric values", () => {
@@ -114,6 +135,35 @@ describe("designer balance config", () => {
     expect(config.turret.turretProjectileLifetime).toBe(0.05);
   });
 
+  it("normalizes trait overrides and drops unsafe values", () => {
+    const traits = normalizeTraitBalanceOverrides({
+      hp_boost: {
+        statModifiers: [
+          { stat: "maxHp", op: "percentAdd", value: 0.35 },
+          { stat: "unknown", op: "percentAdd", value: 1 },
+          { stat: "moveSpeed", op: "bad", value: 1 },
+          { stat: "radius", op: "add", value: Number.NaN }
+        ]
+      },
+      pellet_barrage: {
+        projectile: {
+          damageMultiplier: 0.6,
+          extraProjectiles: 1,
+          ignoredField: 999
+        }
+      },
+      unknown_trait: {
+        projectile: {
+          damageMultiplier: 99
+        }
+      }
+    });
+
+    expect(traits.hp_boost?.statModifiers).toEqual([{ stat: "maxHp", op: "percentAdd", value: 0.35 }]);
+    expect(traits.pellet_barrage?.projectile).toEqual({ damageMultiplier: 0.6, extraProjectiles: 1 });
+    expect(traits.unknown_trait).toBeUndefined();
+  });
+
   it("reads and writes using the storage key", () => {
     const values = new Map<string, string>();
     const storage = {
@@ -123,7 +173,14 @@ describe("designer balance config", () => {
     const config: DesignerBalanceConfig = {
       ...fallback,
       baseStats: { ...fallback.baseStats, radius: 72 },
-      projectile: { ...fallback.projectile, speed: 150 }
+      projectile: { ...fallback.projectile, speed: 150 },
+      traits: {
+        pellet_barrage: {
+          projectile: {
+            damageMultiplier: 0.5
+          }
+        }
+      }
     };
 
     writeDesignerBalanceConfig(storage, config);
@@ -149,15 +206,49 @@ describe("designer balance config", () => {
     });
   });
 
+  it("encodes and decodes trait override JSON", () => {
+    const text = encodeTraitBalanceOverrides({
+      pellet_barrage: {
+        projectile: {
+          damageMultiplier: 0.55,
+          extraProjectiles: 1
+        }
+      }
+    });
+    const result = decodeTraitBalanceOverrides(text);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.traits.pellet_barrage?.projectile?.damageMultiplier).toBe(0.55);
+      expect(result.traits.pellet_barrage?.projectile?.extraProjectiles).toBe(1);
+    }
+    expect(decodeTraitBalanceOverrides("[1,2]")).toEqual({
+      ok: false,
+      message: "词条覆盖 JSON 必须是对象"
+    });
+    expect(decodeTraitBalanceOverrides("{")).toEqual({
+      ok: false,
+      message: "词条覆盖 JSON 解析失败"
+    });
+  });
+
   it("converts full config to battle overrides", () => {
     const overrides = toBattleBalanceOverrides({
       ...fallback,
       baseStats: { ...fallback.baseStats, moveSpeed: 220 },
-      turret: { ...fallback.turret, turretProjectileDamage: 5 }
+      turret: { ...fallback.turret, turretProjectileDamage: 5 },
+      traits: {
+        ranged_core: {
+          projectile: {
+            damageMultiplier: 0.8
+          }
+        }
+      }
     });
 
     expect(overrides.baseStats?.moveSpeed).toBe(220);
     expect(overrides.projectile?.damage).toBe(2);
     expect(overrides.turret?.turretProjectileDamage).toBe(5);
+    expect(overrides.traits?.ranged_core?.projectile?.damageMultiplier).toBe(0.8);
   });
 });

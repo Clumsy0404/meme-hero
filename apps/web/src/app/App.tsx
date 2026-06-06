@@ -19,7 +19,9 @@ import { getBrowserBuildStorage, readSavedBuildState, writeSavedBuildState, type
 import {
   createDefaultDesignerBalanceConfig,
   decodeDesignerBalanceConfig,
+  decodeTraitBalanceOverrides,
   encodeDesignerBalanceConfig,
+  encodeTraitBalanceOverrides,
   getBrowserDesignerBalanceStorage,
   normalizeDesignerBalanceConfig,
   readDesignerBalanceConfig,
@@ -88,6 +90,7 @@ export function App() {
   const [designerConfig, setDesignerConfig] = useState<DesignerBalanceConfig>(initialDesignerConfig);
   const [designerArchiveText, setDesignerArchiveText] = useState("");
   const [designerArchiveMessage, setDesignerArchiveMessage] = useState("修改后重开生效");
+  const [traitOverrideText, setTraitOverrideText] = useState(() => encodeTraitBalanceOverrides(initialDesignerConfig.traits));
   const [appliedBalanceOverrides, setAppliedBalanceOverrides] = useState<BattleBalanceOverrides | undefined>(undefined);
   const [isPaused, setIsPaused] = useState(false);
   const [restartToken, setRestartToken] = useState(0);
@@ -261,12 +264,15 @@ export function App() {
   }, []);
 
   const handleResetDesignerConfig = useCallback(() => {
-    setDesignerConfig(createDefaultDesignerBalanceConfig());
+    const defaultConfig = createDefaultDesignerBalanceConfig();
+    setDesignerConfig(defaultConfig);
+    setTraitOverrideText(encodeTraitBalanceOverrides(defaultConfig.traits));
     setDesignerArchiveMessage("已恢复默认，重开生效");
   }, []);
 
   const handleExportDesignerConfig = useCallback(() => {
     setDesignerArchiveText(encodeDesignerBalanceConfig(designerConfig));
+    setTraitOverrideText(encodeTraitBalanceOverrides(designerConfig.traits));
     setDesignerArchiveMessage("调参配置已导出");
   }, [designerConfig]);
 
@@ -278,8 +284,29 @@ export function App() {
     }
 
     setDesignerConfig(result.config);
+    setTraitOverrideText(encodeTraitBalanceOverrides(result.config.traits));
     setDesignerArchiveMessage("调参配置已导入，重开生效");
   }, [designerArchiveText, designerConfig]);
+
+  const handleApplyTraitOverrides = useCallback(() => {
+    const result = decodeTraitBalanceOverrides(traitOverrideText);
+    if (!result.ok) {
+      setDesignerArchiveMessage(result.message);
+      return;
+    }
+
+    setDesignerConfig((current) =>
+      normalizeDesignerBalanceConfig(
+        {
+          ...current,
+          traits: result.traits
+        },
+        current
+      )
+    );
+    setTraitOverrideText(encodeTraitBalanceOverrides(result.traits));
+    setDesignerArchiveMessage("词条覆盖已应用，重开生效");
+  }, [traitOverrideText]);
 
   const blue = snapshot?.balls.find((ball) => ball.team === "blue" && ball.role === "main");
   const red = snapshot?.balls.find((ball) => ball.team === "red" && ball.role === "main");
@@ -356,12 +383,15 @@ export function App() {
               config={designerConfig}
               message={designerArchiveMessage}
               onArchiveTextChange={setDesignerArchiveText}
+              onApplyTraitOverrides={handleApplyTraitOverrides}
               onBaseStatChange={handleBaseStatChange}
               onExport={handleExportDesignerConfig}
               onImport={handleImportDesignerConfig}
               onProjectileChange={handleProjectileChange}
               onReset={handleResetDesignerConfig}
+              onTraitOverrideTextChange={setTraitOverrideText}
               onTurretChange={handleTurretChange}
+              traitOverrideText={traitOverrideText}
             />
           ) : null}
         </aside>
@@ -481,12 +511,15 @@ type DesignerBalancePanelProps = {
   config: DesignerBalanceConfig;
   message: string;
   onArchiveTextChange: (text: string) => void;
+  onApplyTraitOverrides: () => void;
   onBaseStatChange: (key: keyof BallStats, value: number) => void;
   onExport: () => void;
   onImport: () => void;
   onProjectileChange: (key: keyof DesignerProjectileConfig, value: number) => void;
   onReset: () => void;
+  onTraitOverrideTextChange: (text: string) => void;
   onTurretChange: (key: keyof DesignerTurretConfig, value: number) => void;
+  traitOverrideText: string;
 };
 
 function DesignerBalancePanel({
@@ -494,12 +527,15 @@ function DesignerBalancePanel({
   config,
   message,
   onArchiveTextChange,
+  onApplyTraitOverrides,
   onBaseStatChange,
   onExport,
   onImport,
   onProjectileChange,
   onReset,
-  onTurretChange
+  onTraitOverrideTextChange,
+  onTurretChange,
+  traitOverrideText
 }: DesignerBalancePanelProps) {
   return (
     <section className="designer-panel">
@@ -557,6 +593,20 @@ function DesignerBalancePanel({
             />
           ))}
         </div>
+      </section>
+
+      <section className="designer-number-section">
+        <h3>词条覆盖 JSON</h3>
+        <textarea
+          aria-label="词条覆盖 JSON"
+          className="designer-json-area trait-json-area"
+          onChange={(event) => onTraitOverrideTextChange(event.currentTarget.value)}
+          spellCheck={false}
+          value={traitOverrideText}
+        />
+        <button className="secondary-button full-width" onClick={onApplyTraitOverrides} type="button">
+          应用词条覆盖
+        </button>
       </section>
 
       <div className="designer-actions">
