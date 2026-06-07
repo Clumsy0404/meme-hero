@@ -982,6 +982,7 @@ function BattleScreen({ snapshot, paused, speed, onBack, onRestart, onSpeedChang
               <span className="vbt-nameTag">{combatant.name}</span>
               {combatant.elbow ? <i className="vbt-elbow" style={elbowStyle(combatant)} /> : null}
               <CombatantBall combatant={combatant} />
+              {combatant.statuses.some((status) => status.type === "burn") ? <BurnParticles radius={combatant.r} /> : null}
               {combatant.statuses.map((status) => (
                 <i className="vbt-ball-ring" key={status.type} style={{ "--status": statusColors[status.type] } as React.CSSProperties} />
               ))}
@@ -1053,6 +1054,35 @@ function CombatantBall({ combatant }: { combatant: MobileBattleSnapshot["combata
   return <BallSprite color={combatant.color} px={Math.max(4, combatant.r / 8)} />;
 }
 
+function BurnParticles({ radius }: { radius: number }) {
+  const size = getBurnParticleRenderSize(radius);
+  return (
+    <span aria-hidden="true" className="vbt-burnParticles" style={{ "--burnSize": `${size}px` } as React.CSSProperties}>
+      {burnParticleSpecs.map((particle, index) => (
+        <i
+          key={index}
+          style={
+            {
+              "--fireX": `${particle.x}%`,
+              "--fireY": `${particle.y}%`,
+              "--dx": `${particle.dx}px`,
+              "--dy": `${particle.dy}px`,
+              "--dx18": `${particle.dx * 0.18}px`,
+              "--dy18": `${particle.dy * 0.18}px`,
+              "--dx62": `${particle.dx * 0.62}px`,
+              "--dy62": `${particle.dy * 0.62}px`,
+              "--ps": `${Math.max(3, size * particle.size)}px`,
+              "--pc": particle.color,
+              "--pd": `${particle.duration}s`,
+              "--pdelay": `${particle.delay}s`
+            } as React.CSSProperties
+          }
+        />
+      ))}
+    </span>
+  );
+}
+
 function BuildAvatar({ avatarId, color, traits }: { avatarId: CommonBallAvatarId; color: string; traits: TraitId[] }) {
   const iconSrc = resolveBallIconSrc(traits, avatarId);
   if (iconSrc) {
@@ -1100,6 +1130,10 @@ function FighterHud({ combatant, side }: { combatant: MobileBattleSnapshot["comb
 
 function getSpecialBallRenderSize(radius: number): number {
   return Math.max(34, Math.min(92, radius * 1.28));
+}
+
+function getBurnParticleRenderSize(radius: number): number {
+  return Math.max(44, Math.min(112, radius * 1.55));
 }
 
 function getSpecialEffectColor(effect: MobileBattleSnapshot["combatants"][number]["specialEffects"][number]): string {
@@ -1253,6 +1287,24 @@ const MEME_PX = [7, 6, 7, 6, 5, 5];
 const PLAYER_BUILD_STORAGE_KEY = "meme-hero.mobile.player-builds.v1";
 const PLAYER_BUILD_CODE_VERSION = 1;
 const playerBuildColors = ["#22d3ff", "#ff2e63", "#3ddc84", "#ffb627", "#b14aff", "#ff5db1", "#7aa2ff"];
+const burnParticleSpecs = [
+  { x: 58, y: 37, dx: 14, dy: -22, size: 0.15, color: "#fff36b", duration: 0.72, delay: -0.1 },
+  { x: 48, y: 42, dx: -8, dy: -26, size: 0.11, color: "#ffd23f", duration: 0.86, delay: -0.42 },
+  { x: 68, y: 48, dx: 24, dy: -10, size: 0.13, color: "#ff9f1c", duration: 0.78, delay: -0.25 },
+  { x: 35, y: 52, dx: -20, dy: -8, size: 0.1, color: "#ff6b00", duration: 0.9, delay: -0.62 },
+  { x: 54, y: 62, dx: 10, dy: 15, size: 0.09, color: "#ff3d00", duration: 0.82, delay: -0.18 },
+  { x: 42, y: 34, dx: -18, dy: -25, size: 0.08, color: "#ff4d00", duration: 0.76, delay: -0.55 },
+  { x: 72, y: 34, dx: 22, dy: -28, size: 0.08, color: "#ff7a00", duration: 0.94, delay: -0.74 },
+  { x: 28, y: 44, dx: -25, dy: -18, size: 0.07, color: "#ff3d00", duration: 0.68, delay: -0.32 },
+  { x: 61, y: 26, dx: 8, dy: -32, size: 0.09, color: "#ffe66d", duration: 0.88, delay: -0.68 },
+  { x: 50, y: 52, dx: 0, dy: -18, size: 0.2, color: "#ffcc00", duration: 0.7, delay: -0.02 },
+  { x: 76, y: 58, dx: 28, dy: 4, size: 0.07, color: "#ff5a00", duration: 0.8, delay: -0.47 },
+  { x: 38, y: 66, dx: -18, dy: 12, size: 0.06, color: "#ff2e00", duration: 0.74, delay: -0.8 },
+  { x: 64, y: 70, dx: 18, dy: 18, size: 0.06, color: "#ff6b00", duration: 0.92, delay: -0.36 },
+  { x: 46, y: 24, dx: -8, dy: -34, size: 0.07, color: "#ff9f1c", duration: 0.84, delay: -0.22 },
+  { x: 32, y: 58, dx: -28, dy: 3, size: 0.06, color: "#ff3d00", duration: 0.78, delay: -0.91 },
+  { x: 70, y: 44, dx: 30, dy: -16, size: 0.08, color: "#ff4d00", duration: 0.86, delay: -0.58 }
+] as const;
 
 type BuildCodePayload = {
   v: number;

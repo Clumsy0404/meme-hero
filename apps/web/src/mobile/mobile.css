@@ -1457,6 +1457,67 @@
   user-select: none;
 }
 
+.vbt-burnParticles {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 3;
+  width: var(--burnSize);
+  height: var(--burnSize);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  image-rendering: pixelated;
+}
+
+.vbt-burnParticles i {
+  position: absolute;
+  top: var(--fireY);
+  left: var(--fireX);
+  display: block;
+  width: var(--ps);
+  height: var(--ps);
+  background: var(--pc);
+  box-shadow: 0 0 0 1px #0006, 0 0 7px var(--pc);
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.45);
+  animation: vbtburn var(--pd) steps(5, end) infinite;
+  animation-delay: var(--pdelay);
+}
+
+.vbt-burnParticles i:nth-child(4n + 1) {
+  border-radius: 2px;
+}
+
+.vbt-burnParticles i:nth-child(4n + 2) {
+  box-shadow: 0 0 0 1px #0007, 0 0 4px var(--pc);
+}
+
+.vbt-burnParticles i:nth-child(5n) {
+  mix-blend-mode: screen;
+}
+
+@keyframes vbtburn {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.45);
+  }
+
+  18% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--dx18)), calc(-50% + var(--dy18))) scale(1);
+  }
+
+  58% {
+    opacity: 0.88;
+    transform: translate(calc(-50% + var(--dx62)), calc(-50% + var(--dy62))) scale(0.82);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.28);
+  }
+}
+
 .vbt-elbow {
   position: absolute;
   top: 50%;
