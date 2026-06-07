@@ -99,12 +99,12 @@ export function MobileApp({ onOpenDeveloper }: MobileAppProps) {
   }, []);
 
   const handleBackToTraits = useCallback(() => {
-    playMobileSfx("ui.click");
+    playMobileSfx("ui.back");
     setScreen("traits");
   }, []);
 
   const handleBackToChallenger = useCallback(() => {
-    playMobileSfx("ui.click");
+    playMobileSfx("ui.back");
     setScreen("challenger");
   }, []);
 
@@ -315,7 +315,14 @@ function StartScreen({ onOpenDeveloper, onStart }: StartScreenProps) {
           ▶ 开始游戏
         </button>
         <div className="vst-press">PRESS START</div>
-        <button className="vst-dev" onClick={onOpenDeveloper} type="button">
+        <button
+          className="vst-dev"
+          onClick={() => {
+            playMobileSfx("ui.click");
+            onOpenDeveloper();
+          }}
+          type="button"
+        >
           开发者入口
         </button>
       </div>
@@ -356,7 +363,7 @@ function TraitSelectScreen({ selectedTraits, onConfirm, onTraitsChange }: TraitS
       if (!canAdd(trait)) {
         return;
       }
-      playMobileSfx("ui.click");
+      playMobileSfx("ui.select_trait");
       onTraitsChange([...selectedTraits, trait]);
     },
     [canAdd, onTraitsChange, selectedTraits]
@@ -364,11 +371,16 @@ function TraitSelectScreen({ selectedTraits, onConfirm, onTraitsChange }: TraitS
 
   const removeTrait = useCallback(
     (slotIndex: number) => {
-      playMobileSfx("ui.click");
+      playMobileSfx("ui.remove_trait");
       onTraitsChange(selectedTraits.filter((_, index) => index !== slotIndex));
     },
     [onTraitsChange, selectedTraits]
   );
+
+  const selectCategory = useCallback((nextCategoryId: MobileTraitCategoryId) => {
+    playMobileSfx("ui.tab");
+    setCategoryId(nextCategoryId);
+  }, []);
 
   return (
     <section className="mobile-screen va">
@@ -395,7 +407,7 @@ function TraitSelectScreen({ selectedTraits, onConfirm, onTraitsChange }: TraitS
                 aria-pressed={active}
                 className={`va-tab ${active ? "on" : ""}`}
                 key={category.id}
-                onClick={() => setCategoryId(category.id)}
+                onClick={() => selectCategory(category.id)}
                 style={{ "--tc": category.color } as React.CSSProperties}
                 type="button"
               >
@@ -506,7 +518,7 @@ function ChallengerScreen({
 
   const handleModeChange = useCallback(
     (nextMode: ChallengerMode) => {
-      playMobileSfx("ui.click");
+      playMobileSfx("ui.tab");
       setMode(nextMode);
       onOpponentChange(null);
     },
@@ -621,7 +633,7 @@ function ChallengerScreen({
                 className={`vch-en ${active ? "on" : ""}`}
                 key={enemy.id}
                 onClick={() => {
-                  playMobileSfx("ui.click");
+                  playMobileSfx("ui.select_trait");
                   onOpponentChange(active ? null : enemy);
                 }}
                 style={{ "--ec": enemy.color } as React.CSSProperties}
@@ -675,7 +687,7 @@ function ChallengerScreen({
                     className={`vch-en ${active ? "on" : ""}`}
                     key={record.id}
                     onClick={() => {
-                      playMobileSfx("ui.click");
+                      playMobileSfx("ui.select_trait");
                       onOpponentChange(active ? null : record);
                     }}
                     style={{ "--ec": record.color } as React.CSSProperties}
@@ -755,7 +767,7 @@ function ChallengerScreen({
             <div className="vch-saveActions">
               <button
                 onClick={() => {
-                  playMobileSfx("ui.click");
+                  playMobileSfx("ui.back");
                   setSaveDialogOpen(false);
                 }}
                 type="button"
@@ -816,7 +828,7 @@ function MobileBattleFlow({ blueAvatarId, blueBuild, opponent, redBuild, onBack,
   }, [onBattleResolved, restartToken, snapshot]);
 
   const handleSpeedChange = useCallback((nextSpeed: number) => {
-    playMobileSfx("ui.click");
+    playMobileSfx("ui.speed");
     setSpeed(nextSpeed);
   }, []);
 
@@ -829,7 +841,7 @@ function MobileBattleFlow({ blueAvatarId, blueBuild, opponent, redBuild, onBack,
       }}
       onSpeedChange={handleSpeedChange}
       onTogglePause={() => {
-        playMobileSfx("ui.click");
+        playMobileSfx(paused ? "ui.resume" : "ui.pause");
         setPaused((value) => !value);
       }}
       paused={paused}
