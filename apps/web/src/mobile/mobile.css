@@ -960,6 +960,7 @@
 }
 
 .vch-style,
+.vch-wins,
 .vch-check {
   color: #0b0f1f;
   background: var(--ec);
@@ -968,6 +969,14 @@
 .vch-style {
   padding: 3px 5px;
   font-size: 9px;
+}
+
+.vch-wins {
+  padding: 3px 5px;
+  color: var(--ec);
+  background: rgba(0, 0, 0, 0.45);
+  font-size: 9px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ec) 64%, transparent);
 }
 
 .vch-check {
@@ -1091,6 +1100,71 @@
   background: var(--accent2);
   box-shadow: inset 0 0 0 var(--px) #0009, 0 var(--px) 0 #0007;
   animation: vchpulse 0.85s steps(2) infinite;
+}
+
+.vch-modalShade {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(3, 5, 12, 0.72);
+}
+
+.vch-saveModal {
+  width: min(100%, 286px);
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  color: var(--ink);
+  background: var(--panel);
+  box-shadow: inset 0 0 0 var(--px) var(--line), 0 12px 0 #0007, 0 0 32px #000b;
+}
+
+.vch-saveTitle {
+  color: var(--yellow);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.vch-saveModal input {
+  width: 100%;
+  height: 34px;
+  padding: 7px 8px;
+  color: var(--ink);
+  background: var(--bg);
+  border: 0;
+  border-radius: 0;
+  box-shadow: inset 0 0 0 var(--px) var(--line);
+  outline: none;
+}
+
+.vch-saveModal input:focus {
+  box-shadow: inset 0 0 0 var(--px) var(--yellow), 0 0 0 2px rgba(255, 210, 63, 0.2);
+}
+
+.vch-saveActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.vch-saveActions button {
+  height: 34px;
+  color: var(--ink);
+  background: var(--panel2);
+  box-shadow: inset 0 0 0 var(--px) var(--line), 0 3px 0 #0008;
+}
+
+.vch-saveActions button[type="submit"] {
+  color: #0b0f1f;
+  background: var(--yellow);
+}
+
+.vch-saveActions button:disabled {
+  opacity: 0.55;
 }
 
 @keyframes vchpulse {

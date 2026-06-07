@@ -43,6 +43,7 @@ type PlayerBuildRecord = {
   color: string;
   avatarId: CommonBallAvatarId;
   diff: number;
+  wins: number;
   traits: TraitId[];
   createdAt: string;
   source: "local" | "imported";
@@ -64,6 +65,8 @@ export function MobileApp({ onOpenDeveloper }: MobileAppProps) {
   const [opponent, setOpponent] = useState<MobileOpponentLike | null>(null);
   const [savedBuilds, setSavedBuilds] = useState<PlayerBuildRecord[]>(() => loadPlayerBuildRecords());
   const [blueAvatarId, setBlueAvatarId] = useState<CommonBallAvatarId>(() => pickCommonBallAvatarId("mobile-blue-initial"));
+  const [activeBlueRecordId, setActiveBlueRecordId] = useState<string | null>(null);
+  const selectedTraitKey = useMemo(() => selectedTraits.map((trait) => trait.id).join("|"), [selectedTraits]);
 
   const blueBuild = useMemo(
     () => createBuildConfig("我方小球", "mobile_blue", selectedTraits.map((trait) => trait.id)),
@@ -73,6 +76,10 @@ export function MobileApp({ onOpenDeveloper }: MobileAppProps) {
     () => (opponent ? createBuildConfig(opponent.name, "mobile_red", opponent.traits) : null),
     [opponent]
   );
+
+  useEffect(() => {
+    setActiveBlueRecordId(null);
+  }, [blueAvatarId, selectedTraitKey]);
 
   const handleStart = useCallback(() => {
     playMobileSfx("ui.confirm");
@@ -101,18 +108,19 @@ export function MobileApp({ onOpenDeveloper }: MobileAppProps) {
     setScreen("challenger");
   }, []);
 
-  const handleSavePlayerBuild = useCallback(() => {
+  const handleSavePlayerBuild = useCallback((name?: string) => {
     const traitIds = selectedTraits.map((trait) => trait.id);
     const validation = validateBuildTraitIds(traitIds);
     if (!validation.ok) {
       return null;
     }
-    const record = createPlayerBuildRecord(validation.traits, "local", undefined, blueAvatarId);
+    const record = createPlayerBuildRecord(validation.traits, "local", name, blueAvatarId);
     setSavedBuilds((records) => {
       const nextRecords = [record, ...records].slice(0, 24);
       savePlayerBuildRecords(nextRecords);
       return nextRecords;
     });
+    setActiveBlueRecordId(record.id);
     return record;
   }, [blueAvatarId, selectedTraits]);
 
@@ -129,6 +137,21 @@ export function MobileApp({ onOpenDeveloper }: MobileAppProps) {
     });
     return { ok: true, record };
   }, []);
+
+  const handleBattleResolved = useCallback(
+    (status: MobileBattleStatus, battleOpponent: MobileOpponentLike) => {
+      const winnerRecordId = status === "win" ? activeBlueRecordId : status === "lose" && isPlayerBuildRecord(battleOpponent) ? battleOpponent.id : null;
+      if (!winnerRecordId) {
+        return;
+      }
+      setSavedBuilds((records) => {
+        const nextRecords = records.map((record) => (record.id === winnerRecordId ? { ...record, wins: record.wins + 1 } : record));
+        savePlayerBuildRecords(nextRecords);
+        return nextRecords;
+      });
+    },
+    [activeBlueRecordId]
+  );
 
   return (
     <main className="mobile-shell">
@@ -153,7 +176,14 @@ export function MobileApp({ onOpenDeveloper }: MobileAppProps) {
           />
         ) : null}
         {screen === "battle" && opponent && redBuild ? (
-          <MobileBattleFlow blueAvatarId={blueAvatarId} blueBuild={blueBuild} opponent={opponent} redBuild={redBuild} onBack={handleBackToChallenger} />
+          <MobileBattleFlow
+            blueAvatarId={blueAvatarId}
+            blueBuild={blueBuild}
+            opponent={opponent}
+            redBuild={redBuild}
+            onBack={handleBackToChallenger}
+            onBattleResolved={(status) => handleBattleResolved(status, opponent)}
+          />
         ) : null}
       </div>
     </main>
@@ -452,7 +482,7 @@ type ChallengerScreenProps = {
   onChallenge: (opponent: MobileOpponentLike) => void;
   onImportBuild: (code: string) => ImportBuildResult;
   onOpponentChange: (opponent: MobileOpponentLike | null) => void;
-  onSaveBuild: () => PlayerBuildRecord | null;
+  onSaveBuild: (name?: string) => PlayerBuildRecord | null;
 };
 
 function ChallengerScreen({
@@ -469,7 +499,10 @@ function ChallengerScreen({
   const [mode, setMode] = useState<ChallengerMode>("enemy");
   const [buildCode, setBuildCode] = useState("");
   const [buildMessage, setBuildMessage] = useState("保存或导入构筑后，可在过往玩家中挑战。");
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [saveName, setSaveName] = useState("");
   const currentBuildCode = selectedTraits.length === mobileGameData.pickCount ? encodeBuildCode(selectedTraits.map((trait) => trait.id), blueAvatarId) : "";
+  const rankedSavedBuilds = useMemo(() => [...savedBuilds].sort(comparePlayerBuildRecords), [savedBuilds]);
 
   const handleModeChange = useCallback(
     (nextMode: ChallengerMode) => {
@@ -480,9 +513,15 @@ function ChallengerScreen({
     [onOpponentChange]
   );
 
+  const handleOpenSaveDialog = useCallback(() => {
+    playMobileSfx("ui.click");
+    setSaveName(createDefaultBuildName());
+    setSaveDialogOpen(true);
+  }, []);
+
   const handleSave = useCallback(() => {
     playMobileSfx("ui.confirm");
-    const record = onSaveBuild();
+    const record = onSaveBuild(saveName);
     if (!record) {
       setBuildMessage("当前构筑不完整，无法保存。");
       return;
@@ -490,7 +529,8 @@ function ChallengerScreen({
     setMode("player");
     onOpponentChange(record);
     setBuildMessage(`已保存：${record.name}`);
-  }, [onOpponentChange, onSaveBuild]);
+    setSaveDialogOpen(false);
+  }, [onOpponentChange, onSaveBuild, saveName]);
 
   const handleExport = useCallback(() => {
     if (!currentBuildCode) {
@@ -552,7 +592,7 @@ function ChallengerScreen({
         </div>
         <div className="vch-build-tools">
           <div className="vch-tool-actions">
-            <button disabled={selectedTraits.length !== mobileGameData.pickCount} onClick={handleSave} type="button">
+            <button disabled={selectedTraits.length !== mobileGameData.pickCount} onClick={handleOpenSaveDialog} type="button">
               保存构筑
             </button>
             <button disabled={!currentBuildCode} onClick={handleExport} type="button">
@@ -628,7 +668,7 @@ function ChallengerScreen({
             </div>
           ) : null}
           {mode === "player"
-            ? savedBuilds.map((record) => {
+            ? rankedSavedBuilds.map((record) => {
                 const active = opponent?.id === record.id;
                 return (
                   <button
@@ -649,6 +689,7 @@ function ChallengerScreen({
                       <div className="vch-head">
                         <span className="vch-name">{record.name}</span>
                         <span className="vch-style">{record.style}</span>
+                        <span className="vch-wins">胜场 {record.wins}</span>
                         {active ? <span className="vch-check">✓</span> : null}
                       </div>
                       <div className="vch-desc">{record.desc}</div>
@@ -673,7 +714,7 @@ function ChallengerScreen({
               })
             : null}
         </div>
-        <div className={`vch-more ${mode === "enemy" || savedBuilds.length > 3 ? "show" : ""}`}>
+        <div className={`vch-more ${mode === "enemy" || rankedSavedBuilds.length > 3 ? "show" : ""}`}>
           <span>▼ 下滑查看更多</span>
         </div>
       </div>
@@ -690,6 +731,44 @@ function ChallengerScreen({
           {opponent ? `开始战斗 ▶ ${mode === "player" ? "决斗" : "挑战"} ${opponent.name}` : mode === "player" ? "选择一个过往玩家" : "选择一个挑战者"}
         </button>
       </div>
+
+      {saveDialogOpen ? (
+        <div className="vch-modalShade" role="presentation">
+          <form
+            aria-label="构筑命名"
+            aria-modal="true"
+            className="vch-saveModal"
+            onSubmit={(event) => {
+              event.preventDefault();
+              handleSave();
+            }}
+            role="dialog"
+          >
+            <div className="vch-saveTitle">构筑命名</div>
+            <input
+              autoFocus
+              maxLength={18}
+              onChange={(event) => setSaveName(event.currentTarget.value)}
+              placeholder="输入构筑名称"
+              value={saveName}
+            />
+            <div className="vch-saveActions">
+              <button
+                onClick={() => {
+                  playMobileSfx("ui.click");
+                  setSaveDialogOpen(false);
+                }}
+                type="button"
+              >
+                取消
+              </button>
+              <button disabled={!saveName.trim()} type="submit">
+                保存
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -700,9 +779,10 @@ type MobileBattleFlowProps = {
   opponent: MobileOpponentLike;
   redBuild: BuildConfig;
   onBack: () => void;
+  onBattleResolved: (status: MobileBattleStatus) => void;
 };
 
-function MobileBattleFlow({ blueAvatarId, blueBuild, opponent, redBuild, onBack }: MobileBattleFlowProps) {
+function MobileBattleFlow({ blueAvatarId, blueBuild, opponent, redBuild, onBack, onBattleResolved }: MobileBattleFlowProps) {
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [restartToken, setRestartToken] = useState(0);
@@ -710,9 +790,11 @@ function MobileBattleFlow({ blueAvatarId, blueBuild, opponent, redBuild, onBack 
   const redAvatarId = useMemo(() => pickOpponentAvatarId(opponent, redBuild.traits, blueAvatarId), [blueAvatarId, opponent, redBuild.traits]);
   const snapshot = useMobileBattleSnapshot(blueBuild, redBuild, opponent, battleMode, blueAvatarId, redAvatarId, paused, speed, restartToken);
   const lastSfxTickRef = useRef(-1);
+  const reportedResultRef = useRef<number | null>(null);
 
   useEffect(() => {
     lastSfxTickRef.current = -1;
+    reportedResultRef.current = null;
   }, [restartToken]);
 
   useEffect(() => {
@@ -724,6 +806,14 @@ function MobileBattleFlow({ blueAvatarId, blueBuild, opponent, redBuild, onBack 
     }
     lastSfxTickRef.current = snapshot.tick;
   }, [snapshot]);
+
+  useEffect(() => {
+    if (!snapshot || snapshot.status === "fighting" || reportedResultRef.current === restartToken) {
+      return;
+    }
+    reportedResultRef.current = restartToken;
+    onBattleResolved(snapshot.status);
+  }, [onBattleResolved, restartToken, snapshot]);
 
   const handleSpeedChange = useCallback((nextSpeed: number) => {
     playMobileSfx("ui.click");
@@ -1200,6 +1290,10 @@ function savePlayerBuildRecords(records: PlayerBuildRecord[]): void {
   window.localStorage.setItem(PLAYER_BUILD_STORAGE_KEY, JSON.stringify(records));
 }
 
+function normalizeWinCount(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+}
+
 function normalizePlayerBuildRecord(value: unknown): PlayerBuildRecord | null {
   if (!value || typeof value !== "object") {
     return null;
@@ -1221,6 +1315,7 @@ function normalizePlayerBuildRecord(value: unknown): PlayerBuildRecord | null {
     color: typeof candidate.color === "string" ? candidate.color : pickPlayerBuildColor(candidate.id),
     avatarId: normalizeCommonBallAvatarId(candidate.avatarId) ?? pickCommonBallAvatarId(candidate.id),
     diff: typeof candidate.diff === "number" ? Math.max(1, Math.min(3, Math.round(candidate.diff))) : 2,
+    wins: normalizeWinCount(candidate.wins),
     traits: validation.traits,
     createdAt,
     source: candidate.source === "imported" ? "imported" : "local"
@@ -1229,6 +1324,13 @@ function normalizePlayerBuildRecord(value: unknown): PlayerBuildRecord | null {
 
 function isPlayerBuildRecord(opponent: MobileOpponentLike): opponent is PlayerBuildRecord {
   return "source" in opponent;
+}
+
+function comparePlayerBuildRecords(a: PlayerBuildRecord, b: PlayerBuildRecord): number {
+  if (b.wins !== a.wins) {
+    return b.wins - a.wins;
+  }
+  return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
 }
 
 function pickOpponentAvatarId(opponent: MobileOpponentLike, traits: TraitId[], blueAvatarId: CommonBallAvatarId): CommonBallAvatarId {
@@ -1250,6 +1352,7 @@ function createPlayerBuildRecord(traits: TraitId[], source: "local" | "imported"
     color: pickPlayerBuildColor(id),
     avatarId: preferredAvatarId ?? pickCommonBallAvatarId(id),
     diff: 2,
+    wins: 0,
     traits,
     createdAt,
     source
@@ -1312,6 +1415,10 @@ function describeBuild(traits: TraitId[]): string {
     .map((traitId) => getMobileTrait(traitId)?.name)
     .filter((name): name is string => Boolean(name))
     .join(" · ");
+}
+
+function createDefaultBuildName(): string {
+  return `本地构筑 ${formatRecordTime(new Date().toISOString())}`;
 }
 
 function formatRecordTime(iso: string): string {
