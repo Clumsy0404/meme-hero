@@ -1,0 +1,10 @@
+素材库/
+记忆库/
+node_modules/
+output/
+.playwright-cli/
+*.log
+*.err.log
+apps/*/dist/
+packages/*/dist/
+tools/*/dist/
