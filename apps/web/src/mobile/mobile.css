@@ -1518,6 +1518,67 @@
   }
 }
 
+.vbt-poisonParticles {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 3;
+  width: var(--poisonSize);
+  height: var(--poisonSize);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  image-rendering: pixelated;
+}
+
+.vbt-poisonParticles i {
+  position: absolute;
+  top: var(--poisonY);
+  left: var(--poisonX);
+  display: block;
+  width: var(--pps);
+  height: var(--pps);
+  background: var(--ppc);
+  box-shadow: 0 0 0 1px #001b05aa, 0 0 6px color-mix(in srgb, var(--ppc) 72%, transparent);
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.35);
+  animation: vbtpoison var(--ppd) steps(6, end) infinite;
+  animation-delay: var(--ppdelay);
+}
+
+.vbt-poisonParticles i:nth-child(3n + 1) {
+  border-radius: 999px;
+}
+
+.vbt-poisonParticles i:nth-child(4n) {
+  filter: brightness(1.35);
+}
+
+.vbt-poisonParticles i:nth-child(5n + 2) {
+  box-shadow: 0 0 0 1px #003b08aa, 0 0 9px color-mix(in srgb, var(--ppc) 84%, transparent);
+}
+
+@keyframes vbtpoison {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.35);
+  }
+
+  20% {
+    opacity: 0.84;
+    transform: translate(calc(-50% + var(--pdx35)), calc(-50% + var(--pdy35))) scale(0.92);
+  }
+
+  58% {
+    opacity: 0.56;
+    transform: translate(calc(-50% + var(--pdx70)), calc(-50% + var(--pdy70))) scale(0.74);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--pdx)), calc(-50% + var(--pdy))) scale(0.22);
+  }
+}
+
 .vbt-elbow {
   position: absolute;
   top: 50%;
