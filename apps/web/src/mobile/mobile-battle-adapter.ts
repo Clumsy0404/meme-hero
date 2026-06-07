@@ -392,8 +392,53 @@ function eventToLogLine(event: BattleEvent): MobileLogLine | undefined {
 }
 
 function eventToSfx(event: BattleEvent): MobileSfxKey | undefined {
+  if (event.type === "collision") {
+    return "battle.ball_hit";
+  }
+  if (event.type === "wall_bounce") {
+    return "battle.wall_hit";
+  }
+  if (event.type === "damage") {
+    if (event.tags.includes("explosion")) {
+      return "battle.explosion";
+    }
+    if (event.tags.includes("projectile")) {
+      return "battle.projectile_hit";
+    }
+    if (event.tags.includes("collision") && event.amount >= 10) {
+      return "battle.heavy_hit";
+    }
+    return undefined;
+  }
+  if (event.type === "match_end") {
+    if (event.result.winner === "draw") {
+      return undefined;
+    }
+    return event.result.winner === "blue" ? "battle.win" : "battle.lose";
+  }
   if (event.type !== "trait_triggered") {
     return undefined;
+  }
+  if (event.trigger === "projectile_fire" || event.trigger === "turret_fire" || event.trigger === "basketball_fire" || event.trigger === "projectile_split") {
+    return "battle.projectile_fire";
+  }
+  if (event.trigger === "projectile_bounce") {
+    return "battle.wall_hit";
+  }
+  if (event.trigger === "collision_explosion" || event.trigger === "summon_death_explosion") {
+    return "battle.explosion";
+  }
+  if (event.trigger === "status_apply") {
+    return "battle.status_apply";
+  }
+  if (event.trigger === "shield_refresh" || event.trigger === "shield_absorb") {
+    return "battle.shield_gain";
+  }
+  if (event.trigger === "revive_once") {
+    return "battle.revive";
+  }
+  if (event.trigger === "clone_spawn" || event.trigger === "turret_spawn" || event.trigger === "death_split") {
+    return "battle.spawn";
   }
   if (event.trigger === "elbow_hit") {
     return "special.elbow_strike";

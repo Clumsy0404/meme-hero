@@ -10,14 +10,19 @@ export type MobileSfxKey =
   | "ui.resume"
   | "ui.speed"
   | "battle.start"
+  | "battle.ball_hit"
+  | "battle.wall_hit"
+  | "battle.heavy_hit"
   | "battle.collision_hit"
   | "battle.projectile_fire"
   | "battle.projectile_hit"
+  | "battle.explosion"
   | "battle.status_apply"
   | "battle.shield_gain"
   | "battle.shield_break"
   | "battle.death"
   | "battle.revive"
+  | "battle.spawn"
   | "battle.win"
   | "battle.lose"
   | "special.elbow_strike"
@@ -48,16 +53,21 @@ export const mobileSfxManifest: Record<MobileSfxKey, MobileSfxRef> = {
   "ui.resume": { key: "ui.resume", volume: 0.36, throttleMs: 100 },
   "ui.speed": { key: "ui.speed", volume: 0.3, throttleMs: 80 },
   "battle.start": { key: "battle.start", volume: 0.55, throttleMs: 240 },
-  "battle.collision_hit": { key: "battle.collision_hit", volume: 0.7 },
-  "battle.projectile_fire": { key: "battle.projectile_fire", volume: 0.48 },
-  "battle.projectile_hit": { key: "battle.projectile_hit", volume: 0.62 },
-  "battle.status_apply": { key: "battle.status_apply", volume: 0.55 },
-  "battle.shield_gain": { key: "battle.shield_gain", volume: 0.5 },
-  "battle.shield_break": { key: "battle.shield_break", volume: 0.68 },
-  "battle.death": { key: "battle.death", volume: 0.8 },
-  "battle.revive": { key: "battle.revive", volume: 0.75 },
-  "battle.win": { key: "battle.win", volume: 0.8 },
-  "battle.lose": { key: "battle.lose", volume: 0.8 },
+  "battle.ball_hit": { key: "battle.ball_hit", volume: 0.42, throttleMs: 70 },
+  "battle.wall_hit": { key: "battle.wall_hit", volume: 0.34, throttleMs: 90 },
+  "battle.heavy_hit": { key: "battle.heavy_hit", volume: 0.5, throttleMs: 120 },
+  "battle.collision_hit": { key: "battle.collision_hit", volume: 0.42, throttleMs: 70 },
+  "battle.projectile_fire": { key: "battle.projectile_fire", volume: 0.26, throttleMs: 55 },
+  "battle.projectile_hit": { key: "battle.projectile_hit", volume: 0.32, throttleMs: 65 },
+  "battle.explosion": { key: "battle.explosion", volume: 0.54, throttleMs: 150 },
+  "battle.status_apply": { key: "battle.status_apply", volume: 0.28, throttleMs: 280 },
+  "battle.shield_gain": { key: "battle.shield_gain", volume: 0.34, throttleMs: 160 },
+  "battle.shield_break": { key: "battle.shield_break", volume: 0.48, throttleMs: 180 },
+  "battle.death": { key: "battle.death", volume: 0.56, throttleMs: 300 },
+  "battle.revive": { key: "battle.revive", volume: 0.5, throttleMs: 300 },
+  "battle.spawn": { key: "battle.spawn", volume: 0.32, throttleMs: 160 },
+  "battle.win": { key: "battle.win", volume: 0.58, throttleMs: 1000 },
+  "battle.lose": { key: "battle.lose", volume: 0.5, throttleMs: 1000 },
   "special.elbow_strike": {
     key: "special.elbow_strike",
     src: "/assets/special/special_elbow_strike.mp3",
@@ -244,6 +254,129 @@ function playSynthSfx(key: MobileSfxKey, volume: number): void {
           { type: "sawtooth", start: 0, duration: 0.12, from: 180, to: 420, volume: 0.42 },
           { type: "square", start: 0.08, duration: 0.12, from: 640, to: 920, volume: 0.34 },
           { type: "triangle", start: 0.17, duration: 0.16, from: 960, to: 1280, volume: 0.24 }
+        ],
+        volume
+      );
+      return;
+    case "battle.ball_hit":
+    case "battle.collision_hit":
+      playTones(
+        [
+          { type: "triangle", start: 0, duration: 0.065, from: 210, to: 130, volume: 0.7 },
+          { type: "square", start: 0.006, duration: 0.038, from: 92, to: 72, volume: 0.24 }
+        ],
+        volume
+      );
+      return;
+    case "battle.wall_hit":
+      playTones(
+        [
+          { type: "square", start: 0, duration: 0.035, from: 360, to: 220, volume: 0.46 },
+          { type: "triangle", start: 0.014, duration: 0.04, from: 760, to: 520, volume: 0.18 }
+        ],
+        volume
+      );
+      return;
+    case "battle.heavy_hit":
+      playTones(
+        [
+          { type: "sawtooth", start: 0, duration: 0.09, from: 150, to: 82, volume: 0.62 },
+          { type: "triangle", start: 0.018, duration: 0.07, from: 92, to: 60, volume: 0.32 }
+        ],
+        volume
+      );
+      return;
+    case "battle.projectile_fire":
+      playTones([{ type: "square", start: 0, duration: 0.052, from: 880, to: 1320, volume: 0.38 }], volume);
+      return;
+    case "battle.projectile_hit":
+      playTones(
+        [
+          { type: "square", start: 0, duration: 0.045, from: 520, to: 300, volume: 0.4 },
+          { type: "triangle", start: 0.018, duration: 0.045, from: 980, to: 620, volume: 0.18 }
+        ],
+        volume
+      );
+      return;
+    case "battle.explosion":
+      playTones(
+        [
+          { type: "sawtooth", start: 0, duration: 0.14, from: 118, to: 42, volume: 0.72 },
+          { type: "square", start: 0.018, duration: 0.09, from: 62, to: 36, volume: 0.34 },
+          { type: "triangle", start: 0.04, duration: 0.11, from: 380, to: 140, volume: 0.22 }
+        ],
+        volume
+      );
+      return;
+    case "battle.status_apply":
+      playTones(
+        [
+          { type: "triangle", start: 0, duration: 0.1, from: 680, to: 420, volume: 0.24 },
+          { type: "square", start: 0.055, duration: 0.07, from: 940, to: 720, volume: 0.14 }
+        ],
+        volume
+      );
+      return;
+    case "battle.shield_gain":
+      playTones(
+        [
+          { type: "triangle", start: 0, duration: 0.08, from: 640, to: 980, volume: 0.38 },
+          { type: "triangle", start: 0.045, duration: 0.08, from: 960, to: 1320, volume: 0.2 }
+        ],
+        volume
+      );
+      return;
+    case "battle.shield_break":
+      playTones(
+        [
+          { type: "square", start: 0, duration: 0.06, from: 740, to: 240, volume: 0.42 },
+          { type: "sawtooth", start: 0.025, duration: 0.08, from: 300, to: 120, volume: 0.24 }
+        ],
+        volume
+      );
+      return;
+    case "battle.death":
+      playTones(
+        [
+          { type: "sawtooth", start: 0, duration: 0.16, from: 360, to: 90, volume: 0.45 },
+          { type: "triangle", start: 0.08, duration: 0.12, from: 180, to: 60, volume: 0.24 }
+        ],
+        volume
+      );
+      return;
+    case "battle.revive":
+      playTones(
+        [
+          { type: "triangle", start: 0, duration: 0.12, from: 300, to: 720, volume: 0.36 },
+          { type: "square", start: 0.09, duration: 0.1, from: 840, to: 1240, volume: 0.24 }
+        ],
+        volume
+      );
+      return;
+    case "battle.spawn":
+      playTones(
+        [
+          { type: "square", start: 0, duration: 0.055, from: 420, to: 720, volume: 0.32 },
+          { type: "triangle", start: 0.045, duration: 0.07, from: 720, to: 520, volume: 0.2 }
+        ],
+        volume
+      );
+      return;
+    case "battle.win":
+      playTones(
+        [
+          { type: "square", start: 0, duration: 0.08, from: 520, to: 780, volume: 0.36 },
+          { type: "triangle", start: 0.08, duration: 0.1, from: 780, to: 1040, volume: 0.3 },
+          { type: "triangle", start: 0.18, duration: 0.14, from: 1040, to: 1560, volume: 0.24 }
+        ],
+        volume
+      );
+      return;
+    case "battle.lose":
+      playTones(
+        [
+          { type: "sawtooth", start: 0, duration: 0.16, from: 360, to: 160, volume: 0.34 },
+          { type: "triangle", start: 0.12, duration: 0.15, from: 180, to: 90, volume: 0.22 }
         ],
         volume
       );
