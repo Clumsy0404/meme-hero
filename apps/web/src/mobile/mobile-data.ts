@@ -1,5 +1,6 @@
 import { presetEnemies, traitDefinitions, traitTypeLabels } from "@ball-brawl/content";
 import { TRAITS_PER_BUILD, type TraitDefinition, type TraitId, type TraitRarity, type TraitType } from "@ball-brawl/shared";
+import { pickCommonBallAvatarId, type CommonBallAvatarId } from "./mobile-assets";
 
 export type MobileTraitCategoryId = "survive" | "move" | "damage" | "range" | "summon" | "status" | "rule";
 
@@ -31,6 +32,7 @@ export type MobileOpponent = {
   style: string;
   desc: string;
   color: string;
+  avatarId: CommonBallAvatarId;
   diff: number;
   traits: TraitId[];
 };
@@ -103,6 +105,7 @@ export const mobileOpponents: MobileOpponent[] = presetEnemies.map((enemy, index
   style: enemy.subtitle,
   desc: enemy.description,
   color: getOpponentColor(index),
+  avatarId: pickCommonBallAvatarId(enemy.id),
   diff: Math.min(3, 1 + Math.floor(index / 2)),
   traits: enemy.traits
 }));

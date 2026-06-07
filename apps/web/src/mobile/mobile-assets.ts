@@ -30,6 +30,26 @@ export type SpecialTraitAsset = {
   priority: number;
 };
 
+export type CommonBallAvatarId = "m_angry" | "m_cool" | "m_cry" | "m_grin" | "m_laugh" | "m_skull";
+
+export type CommonBallAvatarAsset = {
+  id: CommonBallAvatarId;
+  ballSrc: string;
+  priority: number;
+};
+
+export const defaultCommonBallAvatarId: CommonBallAvatarId = "m_angry";
+export const commonBallAvatarIds: CommonBallAvatarId[] = ["m_angry", "m_cool", "m_cry", "m_grin", "m_laugh", "m_skull"];
+
+export const commonBallAvatarAssets: Record<CommonBallAvatarId, CommonBallAvatarAsset> = {
+  m_angry: { id: "m_angry", ballSrc: "/assets/common/m_angry.png", priority: 1 },
+  m_cool: { id: "m_cool", ballSrc: "/assets/common/m_cool.png", priority: 2 },
+  m_cry: { id: "m_cry", ballSrc: "/assets/common/m_cry.png", priority: 3 },
+  m_grin: { id: "m_grin", ballSrc: "/assets/common/m_grin.png", priority: 4 },
+  m_laugh: { id: "m_laugh", ballSrc: "/assets/common/m_laugh.png", priority: 5 },
+  m_skull: { id: "m_skull", ballSrc: "/assets/common/m_skull.png", priority: 6 }
+};
+
 export const mobileAssetManifest: MobileAssetManifest = {
   balls: {
     blue: { key: "ball.default_blue", kind: "placeholder" },
@@ -108,6 +128,34 @@ export function getSpecialTraitAsset(traits: TraitId[]): SpecialTraitAsset | und
     .map((traitId) => specialTraitAssets[traitId])
     .filter((asset): asset is SpecialTraitAsset => Boolean(asset))
     .sort((a, b) => a.priority - b.priority)[0];
+}
+
+export function getCommonBallAvatarAsset(avatarId: string | undefined): CommonBallAvatarAsset | undefined {
+  const normalized = normalizeCommonBallAvatarId(avatarId);
+  return normalized ? commonBallAvatarAssets[normalized] : undefined;
+}
+
+export function normalizeCommonBallAvatarId(value: unknown): CommonBallAvatarId | undefined {
+  return typeof value === "string" && value in commonBallAvatarAssets ? (value as CommonBallAvatarId) : undefined;
+}
+
+export function pickCommonBallAvatarId(seed: string, exclude?: CommonBallAvatarId): CommonBallAvatarId {
+  const pool = commonBallAvatarIds.filter((avatarId) => avatarId !== exclude);
+  const avatars = pool.length > 0 ? pool : commonBallAvatarIds;
+  return avatars[hashString(seed) % avatars.length] ?? defaultCommonBallAvatarId;
+}
+
+export function resolveBallIconSrc(traits: TraitId[], commonAvatarId?: CommonBallAvatarId): string | undefined {
+  return getSpecialTraitAsset(traits)?.ballSrc ?? getCommonBallAvatarAsset(commonAvatarId)?.ballSrc;
+}
+
+function hashString(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
 }
 
 export const teamColors: Record<Team, string> = {

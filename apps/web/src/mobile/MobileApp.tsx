@@ -12,7 +12,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { createBuildConfig, createMatchConfig } from "../app/match";
 import { playMobileSfx } from "./mobile-audio";
-import { specialEffectColors, statusColors, statusLabels } from "./mobile-assets";
+import {
+  normalizeCommonBallAvatarId,
+  pickCommonBallAvatarId,
+  resolveBallIconSrc,
+  specialEffectColors,
+  statusColors,
+  statusLabels,
+  type CommonBallAvatarId
+} from "./mobile-assets";
 import {
   getMobileCategory,
   getMobileTrait,
@@ -33,6 +41,7 @@ type PlayerBuildRecord = {
   style: string;
   desc: string;
   color: string;
+  avatarId: CommonBallAvatarId;
   diff: number;
   traits: TraitId[];
   createdAt: string;
@@ -54,6 +63,7 @@ export function MobileApp({ onOpenDeveloper }: MobileAppProps) {
   const [selectedTraits, setSelectedTraits] = useState<MobileTrait[]>([]);
   const [opponent, setOpponent] = useState<MobileOpponentLike | null>(null);
   const [savedBuilds, setSavedBuilds] = useState<PlayerBuildRecord[]>(() => loadPlayerBuildRecords());
+  const [blueAvatarId, setBlueAvatarId] = useState<CommonBallAvatarId>(() => pickCommonBallAvatarId("mobile-blue-initial"));
 
   const blueBuild = useMemo(
     () => createBuildConfig("我方小球", "mobile_blue", selectedTraits.map((trait) => trait.id)),
@@ -71,8 +81,9 @@ export function MobileApp({ onOpenDeveloper }: MobileAppProps) {
 
   const handleConfirmTraits = useCallback(() => {
     playMobileSfx("ui.confirm");
+    setBlueAvatarId(pickCommonBallAvatarId(`blue-${Date.now()}-${selectedTraits.map((trait) => trait.id).join("|")}`));
     setScreen("challenger");
-  }, []);
+  }, [selectedTraits]);
 
   const handleChallenge = useCallback((nextOpponent: MobileOpponentLike) => {
     playMobileSfx("battle.start");
@@ -96,21 +107,21 @@ export function MobileApp({ onOpenDeveloper }: MobileAppProps) {
     if (!validation.ok) {
       return null;
     }
-    const record = createPlayerBuildRecord(validation.traits, "local");
+    const record = createPlayerBuildRecord(validation.traits, "local", undefined, blueAvatarId);
     setSavedBuilds((records) => {
       const nextRecords = [record, ...records].slice(0, 24);
       savePlayerBuildRecords(nextRecords);
       return nextRecords;
     });
     return record;
-  }, [selectedTraits]);
+  }, [blueAvatarId, selectedTraits]);
 
   const handleImportPlayerBuild = useCallback((code: string): ImportBuildResult => {
     const decoded = decodeBuildCode(code);
     if (!decoded.ok) {
       return decoded;
     }
-    const record = createPlayerBuildRecord(decoded.traits, "imported", decoded.name);
+    const record = createPlayerBuildRecord(decoded.traits, "imported", decoded.name, decoded.avatarId);
     setSavedBuilds((records) => {
       const nextRecords = [record, ...records].slice(0, 24);
       savePlayerBuildRecords(nextRecords);
@@ -131,6 +142,7 @@ export function MobileApp({ onOpenDeveloper }: MobileAppProps) {
         {screen === "challenger" ? (
           <ChallengerScreen
             opponent={opponent}
+            blueAvatarId={blueAvatarId}
             savedBuilds={savedBuilds}
             selectedTraits={selectedTraits}
             onBack={handleBackToTraits}
@@ -141,7 +153,7 @@ export function MobileApp({ onOpenDeveloper }: MobileAppProps) {
           />
         ) : null}
         {screen === "battle" && opponent && redBuild ? (
-          <MobileBattleFlow blueBuild={blueBuild} opponent={opponent} redBuild={redBuild} onBack={handleBackToChallenger} />
+          <MobileBattleFlow blueAvatarId={blueAvatarId} blueBuild={blueBuild} opponent={opponent} redBuild={redBuild} onBack={handleBackToChallenger} />
         ) : null}
       </div>
     </main>
@@ -433,6 +445,7 @@ function TraitSelectScreen({ selectedTraits, onConfirm, onTraitsChange }: TraitS
 
 type ChallengerScreenProps = {
   opponent: MobileOpponentLike | null;
+  blueAvatarId: CommonBallAvatarId;
   savedBuilds: PlayerBuildRecord[];
   selectedTraits: MobileTrait[];
   onBack: () => void;
@@ -444,6 +457,7 @@ type ChallengerScreenProps = {
 
 function ChallengerScreen({
   opponent,
+  blueAvatarId,
   savedBuilds,
   selectedTraits,
   onBack,
@@ -455,7 +469,7 @@ function ChallengerScreen({
   const [mode, setMode] = useState<ChallengerMode>("enemy");
   const [buildCode, setBuildCode] = useState("");
   const [buildMessage, setBuildMessage] = useState("保存或导入构筑后，可在过往玩家中挑战。");
-  const currentBuildCode = selectedTraits.length === mobileGameData.pickCount ? encodeBuildCode(selectedTraits.map((trait) => trait.id)) : "";
+  const currentBuildCode = selectedTraits.length === mobileGameData.pickCount ? encodeBuildCode(selectedTraits.map((trait) => trait.id), blueAvatarId) : "";
 
   const handleModeChange = useCallback(
     (nextMode: ChallengerMode) => {
@@ -574,7 +588,7 @@ function ChallengerScreen({
                 type="button"
               >
                 <div className="vch-ava">
-                  <BallSprite color={enemy.color} px={5} />
+                  <BuildAvatar avatarId={enemy.avatarId} color={enemy.color} traits={enemy.traits} />
                   <div className="vch-diff">
                     {Array.from({ length: 3 }).map((_, index) => (
                       <i className={index < enemy.diff ? "on" : ""} key={index} style={{ "--ec": enemy.color } as React.CSSProperties} />
@@ -628,7 +642,7 @@ function ChallengerScreen({
                     type="button"
                   >
                     <div className="vch-ava">
-                      <BallSprite color={record.color} px={5} />
+                      <BuildAvatar avatarId={record.avatarId} color={record.color} traits={record.traits} />
                       <div className="vch-pmeta">{record.source === "imported" ? "导入" : "本地"}</div>
                     </div>
                     <div className="vch-body">
@@ -681,18 +695,20 @@ function ChallengerScreen({
 }
 
 type MobileBattleFlowProps = {
+  blueAvatarId: CommonBallAvatarId;
   blueBuild: BuildConfig;
   opponent: MobileOpponentLike;
   redBuild: BuildConfig;
   onBack: () => void;
 };
 
-function MobileBattleFlow({ blueBuild, opponent, redBuild, onBack }: MobileBattleFlowProps) {
+function MobileBattleFlow({ blueAvatarId, blueBuild, opponent, redBuild, onBack }: MobileBattleFlowProps) {
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [restartToken, setRestartToken] = useState(0);
   const battleMode: MobileBattleSnapshot["mode"] = isPlayerBuildRecord(opponent) ? "pvp" : "pve";
-  const snapshot = useMobileBattleSnapshot(blueBuild, redBuild, opponent, battleMode, paused, speed, restartToken);
+  const redAvatarId = useMemo(() => pickOpponentAvatarId(opponent, redBuild.traits, blueAvatarId), [blueAvatarId, opponent, redBuild.traits]);
+  const snapshot = useMobileBattleSnapshot(blueBuild, redBuild, opponent, battleMode, blueAvatarId, redAvatarId, paused, speed, restartToken);
   const lastSfxTickRef = useRef(-1);
 
   useEffect(() => {
@@ -738,6 +754,8 @@ function useMobileBattleSnapshot(
   redBuild: BuildConfig,
   opponent: MobileOpponentLike,
   mode: MobileBattleSnapshot["mode"],
+  blueAvatarId: CommonBallAvatarId,
+  redAvatarId: CommonBallAvatarId,
   paused: boolean,
   speed: number,
   restartToken: number
@@ -762,7 +780,7 @@ function useMobileBattleSnapshot(
     let world: BattleWorldState = createBattle(createMatchConfig(blueBuild, redBuild, 20260607 + restartToken), DEFAULT_ARENA);
 
     const publish = () => {
-      const nextSnapshot = toMobileBattleSnapshot(getSnapshot(world), blueBuild, redBuild, opponent, mode);
+      const nextSnapshot = toMobileBattleSnapshot(getSnapshot(world), blueBuild, redBuild, opponent, mode, { blueAvatarId, redAvatarId });
       setSnapshot(nextSnapshot);
     };
 
@@ -798,7 +816,7 @@ function useMobileBattleSnapshot(
       disposed = true;
       window.cancelAnimationFrame(animationFrame);
     };
-  }, [blueBuild, mode, opponent, redBuild, restartToken]);
+  }, [blueAvatarId, blueBuild, mode, opponent, redAvatarId, redBuild, restartToken]);
 
   return snapshot;
 }
@@ -945,12 +963,20 @@ function CombatantBall({ combatant }: { combatant: MobileBattleSnapshot["combata
   return <BallSprite color={combatant.color} px={Math.max(4, combatant.r / 8)} />;
 }
 
+function BuildAvatar({ avatarId, color, traits }: { avatarId: CommonBallAvatarId; color: string; traits: TraitId[] }) {
+  const iconSrc = resolveBallIconSrc(traits, avatarId);
+  if (iconSrc) {
+    return <img alt="" className="vch-ava-img" draggable={false} src={iconSrc} />;
+  }
+  return <BallSprite color={color} px={5} />;
+}
+
 function FighterHud({ combatant, side }: { combatant: MobileBattleSnapshot["combatants"][number]; side: "me" | "foe" }) {
   const hpRatio = Math.max(0, Math.min(100, (combatant.hp / combatant.maxHp) * 100));
   return (
     <div className={`vbt-f ${side}`} style={{ "--fc": combatant.color } as React.CSSProperties}>
       <div className="vbt-fname">
-        <BallSprite color={combatant.color} px={3} />
+        {combatant.iconSrc ? <img alt="" className="vbt-ficon" draggable={false} src={combatant.iconSrc} /> : <BallSprite color={combatant.color} px={3} />}
         <span>{combatant.name}</span>
       </div>
       <div className="vbt-bar">
@@ -1141,6 +1167,7 @@ const playerBuildColors = ["#22d3ff", "#ff2e63", "#3ddc84", "#ffb627", "#b14aff"
 type BuildCodePayload = {
   v: number;
   name?: string;
+  avatarId?: CommonBallAvatarId;
   traits: TraitId[];
 };
 
@@ -1192,6 +1219,7 @@ function normalizePlayerBuildRecord(value: unknown): PlayerBuildRecord | null {
     style: typeof candidate.style === "string" ? candidate.style : "玩家构筑",
     desc: typeof candidate.desc === "string" ? candidate.desc : describeBuild(validation.traits),
     color: typeof candidate.color === "string" ? candidate.color : pickPlayerBuildColor(candidate.id),
+    avatarId: normalizeCommonBallAvatarId(candidate.avatarId) ?? pickCommonBallAvatarId(candidate.id),
     diff: typeof candidate.diff === "number" ? Math.max(1, Math.min(3, Math.round(candidate.diff))) : 2,
     traits: validation.traits,
     createdAt,
@@ -1203,7 +1231,15 @@ function isPlayerBuildRecord(opponent: MobileOpponentLike): opponent is PlayerBu
   return "source" in opponent;
 }
 
-function createPlayerBuildRecord(traits: TraitId[], source: "local" | "imported", preferredName?: string): PlayerBuildRecord {
+function pickOpponentAvatarId(opponent: MobileOpponentLike, traits: TraitId[], blueAvatarId: CommonBallAvatarId): CommonBallAvatarId {
+  const preferred = opponent.avatarId ?? pickCommonBallAvatarId(`${opponent.id}-${traits.join("|")}`);
+  if (preferred !== blueAvatarId) {
+    return preferred;
+  }
+  return pickCommonBallAvatarId(`${opponent.id}-${traits.join("|")}-foe`, blueAvatarId);
+}
+
+function createPlayerBuildRecord(traits: TraitId[], source: "local" | "imported", preferredName?: string, preferredAvatarId?: CommonBallAvatarId): PlayerBuildRecord {
   const createdAt = new Date().toISOString();
   const id = `${source}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   return {
@@ -1212,6 +1248,7 @@ function createPlayerBuildRecord(traits: TraitId[], source: "local" | "imported"
     style: source === "imported" ? "过往玩家" : "本地玩家",
     desc: describeBuild(traits),
     color: pickPlayerBuildColor(id),
+    avatarId: preferredAvatarId ?? pickCommonBallAvatarId(id),
     diff: 2,
     traits,
     createdAt,
@@ -1237,13 +1274,13 @@ function validateBuildTraitIds(traits: unknown): { ok: true; traits: TraitId[] }
   return { ok: true, traits: traitIds };
 }
 
-function encodeBuildCode(traits: TraitId[], name = "玩家构筑"): string {
-  const payload: BuildCodePayload = { v: PLAYER_BUILD_CODE_VERSION, name, traits };
+function encodeBuildCode(traits: TraitId[], avatarId: CommonBallAvatarId, name = "玩家构筑"): string {
+  const payload: BuildCodePayload = { v: PLAYER_BUILD_CODE_VERSION, name, avatarId, traits };
   const json = JSON.stringify(payload);
   return window.btoa(unescape(encodeURIComponent(json)));
 }
 
-function decodeBuildCode(code: string): { ok: true; name?: string; traits: TraitId[] } | { ok: false; message: string } {
+function decodeBuildCode(code: string): { ok: true; name?: string; avatarId?: CommonBallAvatarId; traits: TraitId[] } | { ok: false; message: string } {
   const trimmed = code.trim();
   if (!trimmed) {
     return { ok: false, message: "请先粘贴构筑码。" };
@@ -1258,7 +1295,13 @@ function decodeBuildCode(code: string): { ok: true; name?: string; traits: Trait
       return validation;
     }
     const name = typeof payload.name === "string" ? payload.name : undefined;
-    return name ? { ok: true, name, traits: validation.traits } : { ok: true, traits: validation.traits };
+    const avatarId = normalizeCommonBallAvatarId(payload.avatarId);
+    return {
+      ok: true,
+      ...(name ? { name } : {}),
+      ...(avatarId ? { avatarId } : {}),
+      traits: validation.traits
+    };
   } catch {
     return { ok: false, message: "构筑码无法解析。" };
   }

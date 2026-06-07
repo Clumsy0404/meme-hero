@@ -2,7 +2,7 @@ import type { BattleEvent, ProjectileKind, StatusEffectId, WorldSnapshot } from 
 import type { BuildConfig, Team, TraitId } from "@ball-brawl/shared";
 
 import type { MobileSfxKey } from "./mobile-audio";
-import { getSpecialTraitAsset, statusColors, statusLabels, teamColors } from "./mobile-assets";
+import { resolveBallIconSrc, statusColors, statusLabels, teamColors, type CommonBallAvatarId } from "./mobile-assets";
 import { getMobileTrait, type MobileOpponent } from "./mobile-data";
 
 export type MobileBattleStatus = "fighting" | "win" | "lose" | "draw";
@@ -22,6 +22,11 @@ export type MobileBattleSnapshot = {
   floaters: MobileFloater[];
   log: MobileLogLine[];
   sfx: MobileSfxKey[];
+};
+
+export type MobileBattleAvatarConfig = {
+  blueAvatarId?: CommonBallAvatarId;
+  redAvatarId?: CommonBallAvatarId;
 };
 
 export type MobileSpecialEffect = "elbowReady" | "hajimiGuard" | "bladeStance" | "shieldStance" | "tigerGaze" | "blackHandWarning" | "blackHandGrab";
@@ -97,7 +102,8 @@ export function toMobileBattleSnapshot(
   blueBuild: BuildConfig,
   redBuild: BuildConfig,
   opponent: MobileOpponent,
-  mode: "pve" | "pvp" = "pve"
+  mode: "pve" | "pvp" = "pve",
+  avatars: MobileBattleAvatarConfig = {}
 ): MobileBattleSnapshot {
   const mainBalls = snapshot.balls.filter((ball) => ball.role === "main");
   const blueMain = mainBalls.find((ball) => ball.team === "blue");
@@ -129,9 +135,9 @@ export function toMobileBattleSnapshot(
             statuses: blueMain.statuses.map((statusEffect) => ({ type: statusEffect.id, stacks: 1 })),
             specialEffects: getSpecialEffects(blueMain),
             elbow: getSpecialElbow(blueMain),
-            iconSrc: getSpecialTraitAsset(blueBuild.traits)?.ballSrc
+            iconSrc: resolveBallIconSrc(blueBuild.traits, avatars.blueAvatarId)
           }
-        : fallbackCombatant("me", blueBuild.name, teamColors.blue, blueBuild.traits),
+        : fallbackCombatant("me", blueBuild.name, teamColors.blue, blueBuild.traits, avatars.blueAvatarId),
       redMain
         ? {
             side: "foe",
@@ -148,9 +154,9 @@ export function toMobileBattleSnapshot(
             statuses: redMain.statuses.map((statusEffect) => ({ type: statusEffect.id, stacks: 1 })),
             specialEffects: getSpecialEffects(redMain),
             elbow: getSpecialElbow(redMain),
-            iconSrc: getSpecialTraitAsset(redBuild.traits)?.ballSrc
+            iconSrc: resolveBallIconSrc(redBuild.traits, avatars.redAvatarId)
           }
-        : fallbackCombatant("foe", opponent.name, opponent.color, redBuild.traits)
+        : fallbackCombatant("foe", opponent.name, opponent.color, redBuild.traits, avatars.redAvatarId)
     ],
     links: getSpecialLinks(snapshot),
     projectiles: snapshot.projectiles.map((projectile) => ({
@@ -200,7 +206,7 @@ function toMobileBattleStatus(winner: Team | "draw" | undefined): MobileBattleSt
   return winner === "blue" ? "win" : "lose";
 }
 
-function fallbackCombatant(side: "me" | "foe", name: string, color: string, build: TraitId[]): MobileCombatant {
+function fallbackCombatant(side: "me" | "foe", name: string, color: string, build: TraitId[], avatarId?: CommonBallAvatarId): MobileCombatant {
   return {
     side,
     id: side,
@@ -216,7 +222,7 @@ function fallbackCombatant(side: "me" | "foe", name: string, color: string, buil
     statuses: [],
     specialEffects: [],
     elbow: undefined,
-    iconSrc: getSpecialTraitAsset(build)?.ballSrc
+    iconSrc: resolveBallIconSrc(build, avatarId)
   };
 }
 
