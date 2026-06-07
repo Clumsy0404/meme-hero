@@ -1817,6 +1817,167 @@
   box-shadow: 0 0 8px 1px #e5e7eb99;
 }
 
+.vbt-explosion {
+  position: absolute;
+  z-index: 5;
+  width: var(--boomSize);
+  height: var(--boomSize);
+  pointer-events: none;
+  color: var(--boomAccent, #fff);
+  image-rendering: pixelated;
+  mix-blend-mode: screen;
+  transform: translate(-50%, -50%);
+  animation: vbtboomroot 0.46s steps(6, end) forwards;
+}
+
+.vbt-explosion::before,
+.vbt-explosion::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  content: "";
+  pointer-events: none;
+}
+
+.vbt-explosion::before {
+  width: 9%;
+  height: 9%;
+  background: #fff;
+  box-shadow:
+    calc(var(--boomSize) * -0.12) calc(var(--boomSize) * -0.03) 0 0 #f4f4f5,
+    calc(var(--boomSize) * 0.11) calc(var(--boomSize) * -0.07) 0 calc(var(--boomSize) * 0.01) currentColor,
+    calc(var(--boomSize) * -0.05) calc(var(--boomSize) * 0.1) 0 calc(var(--boomSize) * 0.018) #e5e7eb,
+    calc(var(--boomSize) * 0.08) calc(var(--boomSize) * 0.1) 0 0 #d4d4d8,
+    0 0 calc(var(--boomSize) * 0.14) calc(var(--boomSize) * 0.04) color-mix(in srgb, currentColor 65%, transparent);
+  transform: translate(-50%, -50%) scale(0.5);
+  animation: vbtboomcore 0.46s steps(5, end) forwards;
+}
+
+.vbt-explosion::after {
+  width: 100%;
+  height: 100%;
+  border: 2px dotted color-mix(in srgb, currentColor 76%, transparent);
+  box-shadow:
+    inset 0 0 0 2px #ffffff24,
+    0 0 0 2px #0008,
+    0 0 18px color-mix(in srgb, currentColor 58%, transparent);
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.12);
+  animation: vbtboomwave 0.46s steps(5, end) forwards;
+}
+
+.vbt-explosion i {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  width: var(--fragSize);
+  height: var(--fragSize);
+  background: var(--fragColor);
+  box-shadow: 0 0 0 1px #0008, 0 0 8px color-mix(in srgb, var(--fragColor) 78%, transparent);
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.35);
+  animation: vbtboomfrag 0.42s steps(5, end) forwards;
+  animation-delay: var(--fragDelay);
+}
+
+.vbt-explosion i:nth-child(3n + 1) {
+  width: calc(var(--fragSize) * 1.55);
+}
+
+.vbt-explosion i:nth-child(4n + 2) {
+  height: calc(var(--fragSize) * 1.45);
+}
+
+.vbt-explosion.melon::after {
+  border-color: #bbf7d0cc;
+  box-shadow:
+    inset 0 0 0 2px #d9f99d36,
+    0 0 0 2px #0008,
+    0 0 18px #bbf7d099;
+}
+
+@keyframes vbtboomroot {
+  0% {
+    opacity: 1;
+  }
+
+  72% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes vbtboomcore {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.45);
+  }
+
+  18% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(2.8);
+  }
+
+  52% {
+    opacity: 0.72;
+    transform: translate(-50%, -50%) scale(1.7);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.35);
+  }
+}
+
+@keyframes vbtboomwave {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.12);
+  }
+
+  16% {
+    opacity: 0.9;
+    transform: translate(-50%, -50%) scale(0.36);
+  }
+
+  72% {
+    opacity: 0.44;
+    transform: translate(-50%, -50%) scale(0.92);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes vbtboomfrag {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.32);
+  }
+
+  16% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--boomX25)), calc(-50% + var(--boomY25))) scale(1.2);
+  }
+
+  64% {
+    opacity: 0.86;
+    transform: translate(calc(-50% + var(--boomX68)), calc(-50% + var(--boomY68))) scale(0.94);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--boomX)), calc(-50% + var(--boomY))) scale(0.28);
+  }
+}
+
 .vbt-float {
   z-index: 6;
   color: #ff5a5f;

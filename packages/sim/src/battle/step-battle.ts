@@ -447,7 +447,8 @@ function triggerHuaqiangMelonSplash(world: BattleWorldState, projectile: Project
     traitId: "special_huaqiang_melon",
     trigger: "huaqiang_melon_crack",
     position: { ...projectile.position },
-    value: splashDamage
+    value: splashDamage,
+    radius: splashRadius
   });
 
   for (const target of world.balls) {
@@ -1754,7 +1755,8 @@ function triggerCollisionExplosion(world: BattleWorldState, source: BallState, p
     traitId: "collision_burst",
     trigger: "collision_explosion",
     position: { ...position },
-    value: explosionDamage
+    value: explosionDamage,
+    radius: explosionRadius
   });
 
   for (const target of world.balls) {
@@ -2150,7 +2152,8 @@ function triggerSummonDeathExplosion(world: BattleWorldState, source: BallState)
     traitId: "clone_bomb",
     trigger: "summon_death_explosion",
     position: { ...source.position },
-    value: cloneDeathExplosionDamage
+    value: cloneDeathExplosionDamage,
+    radius: cloneDeathExplosionRadius
   });
 
   for (const target of world.balls) {

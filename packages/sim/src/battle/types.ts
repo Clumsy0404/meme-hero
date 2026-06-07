@@ -297,6 +297,7 @@ export type TraitTriggeredEvent = {
   trigger: string;
   position: Vec2;
   value?: number;
+  radius?: number;
 };
 
 export type MatchEndEvent = {

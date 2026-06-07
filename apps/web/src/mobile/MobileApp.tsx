@@ -922,6 +922,8 @@ type BattleScreenProps = {
 };
 
 function BattleScreen({ snapshot, paused, speed, onBack, onRestart, onSpeedChange, onTogglePause }: BattleScreenProps) {
+  const visibleExplosions = useVisibleExplosions(snapshot);
+
   if (!snapshot) {
     return <section className="mobile-screen vbt" />;
   }
@@ -1015,6 +1017,9 @@ function BattleScreen({ snapshot, paused, speed, onBack, onRestart, onSpeedChang
             }
           />
         ))}
+        {visibleExplosions.map((explosion) => (
+          <ExplosionVfx explosion={explosion} key={explosion.id} snapshot={snapshot} />
+        ))}
         {snapshot.floaters.map((floater) => (
           <div className={`vbt-float ${floater.kind}`} key={floater.id} style={arenaStyle(snapshot, floater.x, floater.y)}>
             {floater.text}
@@ -1047,12 +1052,89 @@ function BattleScreen({ snapshot, paused, speed, onBack, onRestart, onSpeedChang
   );
 }
 
+type ActiveExplosion = MobileBattleSnapshot["explosions"][number] & { expiresAt: number };
+
+function useVisibleExplosions(snapshot: MobileBattleSnapshot | null): MobileBattleSnapshot["explosions"] {
+  const [activeExplosions, setActiveExplosions] = useState<ActiveExplosion[]>([]);
+
+  useEffect(() => {
+    if (!snapshot || snapshot.explosions.length === 0) {
+      return;
+    }
+
+    const now = performance.now();
+    setActiveExplosions((current) => {
+      const next = current.filter((explosion) => explosion.expiresAt > now);
+      const seen = new Set(next.map((explosion) => explosion.id));
+      for (const explosion of snapshot.explosions) {
+        if (!seen.has(explosion.id)) {
+          next.push({ ...explosion, expiresAt: now + EXPLOSION_VFX_TTL_MS });
+          seen.add(explosion.id);
+        }
+      }
+      return next.slice(-12);
+    });
+  }, [snapshot]);
+
+  useEffect(() => {
+    if (activeExplosions.length === 0) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      const now = performance.now();
+      setActiveExplosions((current) => current.filter((explosion) => explosion.expiresAt > now));
+    }, EXPLOSION_VFX_TTL_MS);
+    return () => window.clearTimeout(timer);
+  }, [activeExplosions]);
+
+  return activeExplosions.map(({ expiresAt: _expiresAt, ...explosion }) => explosion);
+}
+
 function CombatantBall({ combatant }: { combatant: MobileBattleSnapshot["combatants"][number] }) {
   if (combatant.iconSrc) {
     const size = getSpecialBallRenderSize(combatant.r);
     return <img alt="" className="vbt-ball-img" draggable={false} src={combatant.iconSrc} style={{ "--bs": `${size}px` } as React.CSSProperties} />;
   }
   return <BallSprite color={combatant.color} px={Math.max(4, combatant.r / 8)} />;
+}
+
+function ExplosionVfx({ explosion, snapshot }: { explosion: MobileBattleSnapshot["explosions"][number]; snapshot: MobileBattleSnapshot }) {
+  const size = getExplosionRenderSize(explosion.radius);
+  return (
+    <span
+      aria-hidden="true"
+      className={`vbt-explosion ${explosion.kind}`}
+      style={
+        {
+          ...arenaStyle(snapshot, explosion.x, explosion.y),
+          "--boomSize": `${size}px`,
+          "--boomAccent": explosion.kind === "melon" ? "#d9f99d" : "#ffffff"
+        } as React.CSSProperties
+      }
+    >
+      {explosionParticleSpecs.map((fragment, index) => {
+        const color = explosion.kind === "melon" && index % 5 === 0 ? "#bbf7d0" : fragment.color;
+        return (
+          <i
+            key={index}
+            style={
+              {
+                "--boomX": `${fragment.dx * size}px`,
+                "--boomY": `${fragment.dy * size}px`,
+                "--boomX25": `${fragment.dx * size * 0.25}px`,
+                "--boomY25": `${fragment.dy * size * 0.25}px`,
+                "--boomX68": `${fragment.dx * size * 0.68}px`,
+                "--boomY68": `${fragment.dy * size * 0.68}px`,
+                "--fragSize": `${Math.max(3, size * fragment.size)}px`,
+                "--fragColor": color,
+                "--fragDelay": `${fragment.delay}s`
+              } as React.CSSProperties
+            }
+          />
+        );
+      })}
+    </span>
+  );
 }
 
 function BurnParticles({ radius }: { radius: number }) {
@@ -1168,6 +1250,10 @@ function getBurnParticleRenderSize(radius: number): number {
 
 function getPoisonParticleRenderSize(radius: number): number {
   return Math.max(54, Math.min(124, radius * 1.75));
+}
+
+function getExplosionRenderSize(radius: number): number {
+  return Math.max(58, Math.min(190, radius * 2));
 }
 
 function getSpecialEffectColor(effect: MobileBattleSnapshot["combatants"][number]["specialEffects"][number]): string {
@@ -1360,6 +1446,27 @@ const poisonParticleSpecs = [
   { x: 30, y: 70, dx: -22, dy: -7, size: 0.06, color: "#21ff48", duration: 1.9, delay: -1.62 },
   { x: 79, y: 48, dx: 28, dy: -16, size: 0.05, color: "#78ff00", duration: 1.74, delay: -0.98 },
   { x: 22, y: 52, dx: -26, dy: -15, size: 0.05, color: "#baff4f", duration: 2.16, delay: -0.58 }
+] as const;
+const EXPLOSION_VFX_TTL_MS = 560;
+const explosionParticleSpecs = [
+  { dx: 0, dy: -0.46, size: 0.072, color: "#ffffff", delay: 0 },
+  { dx: 0.18, dy: -0.42, size: 0.058, color: "#f4f4f5", delay: 0.015 },
+  { dx: 0.37, dy: -0.32, size: 0.052, color: "#ffffff", delay: 0.025 },
+  { dx: 0.48, dy: -0.08, size: 0.064, color: "#e4e4e7", delay: 0 },
+  { dx: 0.44, dy: 0.18, size: 0.05, color: "#fafafa", delay: 0.04 },
+  { dx: 0.25, dy: 0.39, size: 0.06, color: "#d4d4d8", delay: 0.02 },
+  { dx: 0.02, dy: 0.47, size: 0.048, color: "#ffffff", delay: 0.055 },
+  { dx: -0.22, dy: 0.41, size: 0.057, color: "#e5e7eb", delay: 0.01 },
+  { dx: -0.43, dy: 0.2, size: 0.066, color: "#ffffff", delay: 0.03 },
+  { dx: -0.49, dy: -0.04, size: 0.052, color: "#d4d4d8", delay: 0.045 },
+  { dx: -0.35, dy: -0.31, size: 0.061, color: "#f4f4f5", delay: 0.018 },
+  { dx: -0.15, dy: -0.45, size: 0.046, color: "#ffffff", delay: 0.035 },
+  { dx: 0.1, dy: -0.24, size: 0.092, color: "#ffffff", delay: 0 },
+  { dx: 0.28, dy: 0.04, size: 0.078, color: "#f4f4f5", delay: 0.02 },
+  { dx: 0.05, dy: 0.25, size: 0.086, color: "#e4e4e7", delay: 0.015 },
+  { dx: -0.24, dy: 0.05, size: 0.08, color: "#ffffff", delay: 0.025 },
+  { dx: 0.52, dy: -0.28, size: 0.034, color: "#fafafa", delay: 0.035 },
+  { dx: -0.54, dy: 0.31, size: 0.036, color: "#d4d4d8", delay: 0.05 }
 ] as const;
 
 type BuildCodePayload = {

@@ -286,7 +286,10 @@ describe("sim bootstrap", () => {
     if (!explosionEvent || explosionEvent.type !== "damage") {
       throw new Error("Expected explosion damage");
     }
-    expect(triggerEvent?.type).toBe("trait_triggered");
+    if (!triggerEvent || triggerEvent.type !== "trait_triggered") {
+      throw new Error("Expected collision explosion trigger");
+    }
+    expect(triggerEvent.radius).toBe(82);
     expect(explosionEvent.amount).toBeCloseTo(8);
     expect(red.hp).toBeCloseTo(red.stats.maxHp - 16);
   });
@@ -813,8 +816,12 @@ describe("sim bootstrap", () => {
     if (!explosionEvent || explosionEvent.type !== "damage") {
       throw new Error("Expected clone death explosion damage");
     }
+    const triggerEvent = world.events.find((event) => event.type === "trait_triggered" && event.traitId === "clone_bomb");
+    if (!triggerEvent || triggerEvent.type !== "trait_triggered") {
+      throw new Error("Expected clone death explosion trigger");
+    }
     expect(explosionEvent.amount).toBeCloseTo(10 * 0.7);
-    expect(world.events.some((event) => event.type === "trait_triggered" && event.traitId === "clone_bomb")).toBe(true);
+    expect(triggerEvent.radius).toBe(70);
   });
 
   it("spawns auto turrets that fire projectile shots", () => {
@@ -1097,7 +1104,11 @@ describe("sim bootstrap", () => {
 
     expect(hpBefore - red.hp).toBeCloseTo(4);
     expect(world.projectiles.filter((projectile) => projectile.kind === "melon")).toHaveLength(0);
-    expect(world.events.some((event) => event.type === "trait_triggered" && event.trigger === "huaqiang_melon_crack")).toBe(true);
+    const triggerEvent = world.events.find((event) => event.type === "trait_triggered" && event.trigger === "huaqiang_melon_crack");
+    if (!triggerEvent || triggerEvent.type !== "trait_triggered") {
+      throw new Error("Expected huaqiang melon crack trigger");
+    }
+    expect(triggerEvent.radius).toBe(70);
   });
 
   it("warns, grabs, drags, and slows with special black hand", () => {

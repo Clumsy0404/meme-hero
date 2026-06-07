@@ -298,8 +298,9 @@ function drawEvents(graphics: Graphics, events: BattleEvent[]): void {
     }
     if (event.type === "trait_triggered") {
       const color = getTraitEventColor(event.traitId, event.trigger);
+      const radius = event.radius ? event.radius * arenaScale : 22 + (event.value ?? 1) * 2;
       graphics
-        .circle(event.position.x * arenaScale, event.position.y * arenaScale, 22 + (event.value ?? 1) * 2)
+        .circle(event.position.x * arenaScale, event.position.y * arenaScale, radius)
         .stroke({ color, width: 2, alpha: 0.5 });
     }
   }
@@ -333,6 +334,12 @@ function getTraitEventColor(traitId: string, trigger: string): number {
   }
   if (traitId === "collision_burst") {
     return 0xfb923c;
+  }
+  if (traitId === "clone_bomb") {
+    return 0xf8fafc;
+  }
+  if (trigger === "huaqiang_melon_crack") {
+    return 0xbbf7d0;
   }
   if (traitId === "spike_reflect") {
     return 0xf472b6;

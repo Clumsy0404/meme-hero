@@ -19,6 +19,7 @@ export type MobileBattleSnapshot = {
   links: MobileBattleLink[];
   projectiles: MobileProjectile[];
   summons: MobileSummon[];
+  explosions: MobileExplosion[];
   floaters: MobileFloater[];
   log: MobileLogLine[];
   sfx: MobileSfxKey[];
@@ -89,6 +90,14 @@ export type MobileFloater = {
   y: number;
   text: string;
   kind: "dmg" | "heal" | "crit";
+};
+
+export type MobileExplosion = {
+  id: string;
+  x: number;
+  y: number;
+  radius: number;
+  kind: "white" | "melon";
 };
 
 export type MobileLogLine = {
@@ -190,6 +199,7 @@ export function toMobileBattleSnapshot(
         kind: "turret" as const
       }))
     ],
+    explosions: snapshot.events.map(eventToExplosion).filter((explosion): explosion is MobileExplosion => Boolean(explosion)),
     floaters: snapshot.events.map(eventToFloater).filter((floater): floater is MobileFloater => Boolean(floater)).slice(-8),
     log: snapshot.events.map(eventToLogLine).filter((line): line is MobileLogLine => Boolean(line)).slice(-5).reverse(),
     sfx: snapshot.events.map(eventToSfx).filter((key): key is MobileSfxKey => Boolean(key))
@@ -301,10 +311,38 @@ function toOwner(team: Team): "me" | "foe" {
   return team === "blue" ? "me" : "foe";
 }
 
-function eventToFloater(event: BattleEvent): MobileFloater | undefined {
+function eventToExplosion(event: BattleEvent, index: number): MobileExplosion | undefined {
+  if (event.type !== "trait_triggered") {
+    return undefined;
+  }
+  if (
+    event.trigger !== "collision_explosion" &&
+    event.trigger !== "summon_death_explosion" &&
+    event.trigger !== "huaqiang_melon_crack"
+  ) {
+    return undefined;
+  }
+
+  return {
+    id: `boom-${event.tick}-${index}-${event.traitId}-${event.trigger}`,
+    x: event.position.x,
+    y: event.position.y,
+    radius: Math.max(24, event.radius ?? defaultExplosionRadius(event.trigger)),
+    kind: event.trigger === "huaqiang_melon_crack" ? "melon" : "white"
+  };
+}
+
+function defaultExplosionRadius(trigger: string): number {
+  if (trigger === "collision_explosion") {
+    return 82;
+  }
+  return 70;
+}
+
+function eventToFloater(event: BattleEvent, index: number): MobileFloater | undefined {
   if (event.type === "damage") {
     return {
-      id: `f-${event.tick}-${event.targetId}-${event.amount}`,
+      id: `f-${event.tick}-${index}-${event.targetId}-${event.amount}`,
       x: event.position.x,
       y: event.position.y,
       text: `-${Math.round(event.amount)}`,
@@ -313,7 +351,7 @@ function eventToFloater(event: BattleEvent): MobileFloater | undefined {
   }
   if (event.type === "heal") {
     return {
-      id: `f-${event.tick}-${event.targetId}-heal`,
+      id: `f-${event.tick}-${index}-${event.targetId}-heal`,
       x: event.position.x,
       y: event.position.y,
       text: `+${Math.round(event.amount)}`,
