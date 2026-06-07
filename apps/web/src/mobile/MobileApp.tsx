@@ -1101,7 +1101,7 @@ function PoisonParticles({ radius }: { radius: number }) {
               "--pdy35": `${particle.dy * 0.35}px`,
               "--pdx70": `${particle.dx * 0.7}px`,
               "--pdy70": `${particle.dy * 0.7}px`,
-              "--pps": `${Math.max(3, size * particle.size)}px`,
+              "--pps": `${Math.max(4, size * particle.size * 1.3)}px`,
               "--ppc": particle.color,
               "--ppd": `${particle.duration}s`,
               "--ppdelay": `${particle.delay}s`
@@ -1167,7 +1167,7 @@ function getBurnParticleRenderSize(radius: number): number {
 }
 
 function getPoisonParticleRenderSize(radius: number): number {
-  return Math.max(42, Math.min(104, radius * 1.48));
+  return Math.max(54, Math.min(124, radius * 1.75));
 }
 
 function getSpecialEffectColor(effect: MobileBattleSnapshot["combatants"][number]["specialEffects"][number]): string {
@@ -1353,7 +1353,13 @@ const poisonParticleSpecs = [
   { x: 74, y: 62, dx: 24, dy: -6, size: 0.05, color: "#1fcf3b", duration: 1.74, delay: -0.5 },
   { x: 36, y: 31, dx: -14, dy: -30, size: 0.05, color: "#d8ff72", duration: 2.2, delay: -1.72 },
   { x: 57, y: 25, dx: 5, dy: -34, size: 0.04, color: "#5aff2d", duration: 1.92, delay: -0.32 },
-  { x: 46, y: 52, dx: -5, dy: -20, size: 0.11, color: "#88ff00", duration: 2.04, delay: -1.02 }
+  { x: 46, y: 52, dx: -5, dy: -20, size: 0.11, color: "#88ff00", duration: 2.04, delay: -1.02 },
+  { x: 58, y: 54, dx: 10, dy: -18, size: 0.1, color: "#ccff33", duration: 1.68, delay: -0.76 },
+  { x: 42, y: 60, dx: -13, dy: -14, size: 0.09, color: "#44ff66", duration: 1.82, delay: -1.46 },
+  { x: 69, y: 28, dx: 18, dy: -31, size: 0.06, color: "#ecff7a", duration: 2.08, delay: -0.18 },
+  { x: 30, y: 70, dx: -22, dy: -7, size: 0.06, color: "#21ff48", duration: 1.9, delay: -1.62 },
+  { x: 79, y: 48, dx: 28, dy: -16, size: 0.05, color: "#78ff00", duration: 1.74, delay: -0.98 },
+  { x: 22, y: 52, dx: -26, dy: -15, size: 0.05, color: "#baff4f", duration: 2.16, delay: -0.58 }
 ] as const;
 
 type BuildCodePayload = {

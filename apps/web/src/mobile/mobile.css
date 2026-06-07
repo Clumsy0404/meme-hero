@@ -1530,6 +1530,35 @@
   image-rendering: pixelated;
 }
 
+.vbt-poisonParticles::before,
+.vbt-poisonParticles::after {
+  position: absolute;
+  content: "";
+  pointer-events: none;
+}
+
+.vbt-poisonParticles::before {
+  inset: 13%;
+  border: 2px dotted #a6ff4d;
+  border-radius: 999px;
+  opacity: 0.58;
+  box-shadow: 0 0 12px #44ff66aa, inset 0 0 12px #39ff1433;
+  animation: vbtpoisonhalo 1.35s steps(4, end) infinite;
+}
+
+.vbt-poisonParticles::after {
+  inset: 3%;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 34% 38%, rgba(202, 255, 90, 0.34), transparent 18%),
+    radial-gradient(circle at 67% 45%, rgba(57, 255, 20, 0.26), transparent 22%),
+    radial-gradient(circle at 50% 70%, rgba(36, 216, 50, 0.2), transparent 24%);
+  opacity: 0.68;
+  filter: blur(1px);
+  mix-blend-mode: screen;
+  animation: vbtpoisonmist 1.9s steps(5, end) infinite;
+}
+
 .vbt-poisonParticles i {
   position: absolute;
   top: var(--poisonY);
@@ -1538,7 +1567,7 @@
   width: var(--pps);
   height: var(--pps);
   background: var(--ppc);
-  box-shadow: 0 0 0 1px #001b05aa, 0 0 6px color-mix(in srgb, var(--ppc) 72%, transparent);
+  box-shadow: 0 0 0 1px #001b05aa, 0 0 9px color-mix(in srgb, var(--ppc) 86%, transparent);
   opacity: 0;
   transform: translate(-50%, -50%) scale(0.35);
   animation: vbtpoison var(--ppd) steps(6, end) infinite;
@@ -1554,7 +1583,21 @@
 }
 
 .vbt-poisonParticles i:nth-child(5n + 2) {
-  box-shadow: 0 0 0 1px #003b08aa, 0 0 9px color-mix(in srgb, var(--ppc) 84%, transparent);
+  box-shadow: 0 0 0 1px #003b08aa, 0 0 13px color-mix(in srgb, var(--ppc) 92%, transparent);
+}
+
+@keyframes vbtpoisonhalo {
+  50% {
+    opacity: 0.9;
+    transform: scale(1.12) rotate(8deg);
+  }
+}
+
+@keyframes vbtpoisonmist {
+  50% {
+    opacity: 0.92;
+    transform: translate(2px, -3px) scale(1.06);
+  }
 }
 
 @keyframes vbtpoison {
